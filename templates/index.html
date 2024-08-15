@@ -69,19 +69,12 @@
             },
             methods: {
                 async searchAnime() {
-                    try {
-                        console.log("Iniziando la ricerca per:", this.query);
-                        const response = await axios.post('/search', new URLSearchParams({ query: this.query }));
-                        console.log("Risposta ricevuta:", response.data);
-                        this.animeResults = response.data;
-                        this.episodes = [];
-                        this.videoUrl = '';
-                        this.streamingUrl = '';
-                        this.suggestions = [];
-                    } catch (error) {
-                        console.error("Errore durante la ricerca:", error);
-                        alert("Si è verificato un errore durante la ricerca. Controlla la console per i dettagli.");
-                    }
+                    const response = await axios.post('/search', new URLSearchParams({ query: this.query }));
+                    this.animeResults = response.data;
+                    this.episodes = [];
+                    this.videoUrl = '';
+                    this.streamingUrl = '';
+                    this.suggestions = [];
                 },
                 async getEpisodes(animeUrl) {
                     const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
