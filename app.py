@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, render_template, request, jsonify
 import requests
 from bs4 import BeautifulSoup
@@ -17,7 +16,6 @@ def search_anime(query):
     results = soup.find_all('a', class_='badge-archivio')
     return [{"title": result.text.strip(), "url": urljoin(BASE_URL, result['href'])} for result in results]
 
-
 def get_episodes(anime_url):
     response = requests.get(anime_url)
     response.raise_for_status()
@@ -26,7 +24,6 @@ def get_episodes(anime_url):
     episode_data = []
 
     for ep in episodes:
-        # Trova la miniatura associata all'episodio
         thumbnail_container = ep.find_previous('div', class_='container shadow rounded bg-dark-as-box mb-3 p-3 w-100 d-flex justify-content-center')
         thumbnail_url = None
         if thumbnail_container:
@@ -37,12 +34,10 @@ def get_episodes(anime_url):
         episode_data.append({
             "title": ep.text.strip(),
             "url": urljoin(BASE_URL, ep['href']),
-            "thumbnail": thumbnail_url  # Aggiungi l'URL della miniatura
+            "thumbnail": thumbnail_url
         })
 
     return episode_data
-
-
 
 def get_streaming_url(episode_url):
     response = requests.get(episode_url)
@@ -99,6 +94,12 @@ def index():
 def search():
     query = request.form['query']
     results = search_anime(query)
+    return jsonify(results)
+
+@app.route('/search_suggestions', methods=['POST'])
+def search_suggestions():
+    query = request.form['query']
+    results = search_anime(query)[:5]  # Limita a 5 suggerimenti
     return jsonify(results)
 
 @app.route('/episodes', methods=['POST'])
