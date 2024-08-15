@@ -2,7 +2,9 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>AnimeSaturn Viewer</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
@@ -11,14 +13,22 @@
         body {
             background-color: #F2F2F7;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
         }
         .container {
-            max-width: 800px;
+            max-width: 100%;
+            padding-left: 16px;
+            padding-right: 16px;
         }
         .card {
             background-color: white;
             border-radius: 10px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        .card:active {
+            background-color: #f0f0f0;
         }
         .btn {
             border-radius: 10px;
@@ -37,11 +47,21 @@
         .text-primary {
             color: #007AFF;
         }
-        @media (max-width: 640px) {
-            .container {
-                padding-left: 16px;
-                padding-right: 16px;
-            }
+        .search-container {
+            position: relative;
+        }
+        .search-input {
+            width: 100%;
+            padding-right: 50px;
+        }
+        .search-button {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 50px;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
         }
     </style>
 </head>
@@ -49,9 +69,13 @@
     <div id="app" class="container mx-auto p-4">
         <h1 class="text-3xl font-bold mb-8 text-center text-primary">AnimeSaturn Viewer</h1>
 
-        <div class="mb-6 relative">
-            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input p-3 w-full focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Cerca un anime">
-            <button @click="searchAnime" class="btn btn-primary text-white p-3 absolute right-0 top-1/2 transform -translate-y-1/2 mr-1">Cerca</button>
+        <div class="mb-6 search-container">
+            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input p-3 w-full search-input focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Cerca un anime">
+            <button @click="searchAnime" class="btn btn-primary text-white search-button flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </button>
             <div v-if="suggestions.length" class="absolute z-10 bg-white border rounded-lg mt-1 w-full shadow-lg">
                 <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-gray-100 cursor-pointer">
                     <span v-text="suggestion.title"></span>
@@ -62,8 +86,8 @@
         <div v-if="animeResults.length" class="mb-8">
             <h2 class="text-2xl font-semibold mb-4 text-primary">Risultati della ricerca:</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div v-for="anime in animeResults" :key="anime.url" class="card p-4">
-                    <button @click="getEpisodes(anime.url)" class="text-lg text-primary hover:underline font-medium" v-text="anime.title"></button>
+                <div v-for="anime in animeResults" :key="anime.url" class="card p-4" @click="getEpisodes(anime.url)">
+                    <span class="text-lg text-primary font-medium" v-text="anime.title"></span>
                 </div>
             </div>
         </div>
@@ -71,8 +95,8 @@
         <div v-if="episodes.length" class="mb-8">
             <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                <div v-for="episode in episodes" :key="episode.url" class="card p-4">
-                    <button @click="getStreamingUrl(episode.url)" class="text-primary hover:underline" v-text="episode.title"></button>
+                <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode.url)">
+                    <span class="text-primary" v-text="episode.title"></span>
                 </div>
             </div>
         </div>
@@ -80,7 +104,7 @@
         <div v-if="videoUrl" class="mb-6 card p-6">
             <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
             <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
-            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+            <div class="flex flex-col space-y-2">
                 <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
                 <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
             </div>
@@ -89,7 +113,7 @@
         <div v-if="streamingUrl && !videoUrl" class="mb-6 card p-6">
             <h2 class="text-2xl font-semibold mb-3 text-primary">Link streaming:</h2>
             <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
-            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+            <div class="flex flex-col space-y-2">
                 <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
                 <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
             </div>
