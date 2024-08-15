@@ -9,72 +9,90 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #f0f4f8;
-            font-family: 'Arial', sans-serif;
+            background-color: #F2F2F7;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
         .container {
             max-width: 800px;
         }
         .card {
             background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
-        }
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
         .btn {
-            transition: all 0.3s ease;
+            border-radius: 10px;
+            font-weight: 600;
         }
-        .btn:hover {
-            transform: translateY(-1px);
+        .btn-primary {
+            background-color: #007AFF;
+        }
+        .btn-secondary {
+            background-color: #5AC8FA;
+        }
+        .input {
+            border-radius: 10px;
+            border: 1px solid #D1D1D6;
+        }
+        .text-primary {
+            color: #007AFF;
+        }
+        @media (max-width: 640px) {
+            .container {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
         }
     </style>
 </head>
 <body>
     <div id="app" class="container mx-auto p-4">
-        <h1 class="text-4xl font-bold mb-8 text-center text-indigo-700">AnimeSaturn Viewer</h1>
+        <h1 class="text-3xl font-bold mb-8 text-center text-primary">AnimeSaturn Viewer</h1>
 
         <div class="mb-6 relative">
-            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="border-2 border-indigo-300 p-3 rounded-lg w-full focus:outline-none focus:border-indigo-500" placeholder="Cerca un anime">
-            <button @click="searchAnime" class="bg-indigo-500 text-white p-3 rounded-lg ml-2 absolute right-0 top-0 btn">Cerca</button>
+            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input p-3 w-full focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Cerca un anime">
+            <button @click="searchAnime" class="btn btn-primary text-white p-3 absolute right-0 top-1/2 transform -translate-y-1/2 mr-1">Cerca</button>
             <div v-if="suggestions.length" class="absolute z-10 bg-white border rounded-lg mt-1 w-full shadow-lg">
-                <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-indigo-100 cursor-pointer">
+                <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-gray-100 cursor-pointer">
                     <span v-text="suggestion.title"></span>
                 </div>
             </div>
         </div>
 
         <div v-if="animeResults.length" class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4 text-indigo-600">Risultati della ricerca:</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h2 class="text-2xl font-semibold mb-4 text-primary">Risultati della ricerca:</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div v-for="anime in animeResults" :key="anime.url" class="card p-4">
-                    <button @click="getEpisodes(anime.url)" class="text-lg text-indigo-600 hover:text-indigo-800 font-medium" v-text="anime.title"></button>
+                    <button @click="getEpisodes(anime.url)" class="text-lg text-primary hover:underline font-medium" v-text="anime.title"></button>
                 </div>
             </div>
         </div>
 
         <div v-if="episodes.length" class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4 text-indigo-600">Episodi disponibili:</h2>
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 <div v-for="episode in episodes" :key="episode.url" class="card p-4">
-                    <button @click="getStreamingUrl(episode.url)" class="text-indigo-600 hover:text-indigo-800" v-text="episode.title"></button>
+                    <button @click="getStreamingUrl(episode.url)" class="text-primary hover:underline" v-text="episode.title"></button>
                 </div>
             </div>
         </div>
 
         <div v-if="videoUrl" class="mb-6 card p-6">
-            <h2 class="text-2xl font-semibold mb-3 text-indigo-600">Video trovato:</h2>
-            <p class="mb-3 text-gray-700" v-text="videoUrl"></p>
-            <button @click="openInVlc" class="bg-green-500 text-white p-3 rounded-lg btn">Apri in VLC</button>
+            <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
+            <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
+            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+                <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
+            </div>
         </div>
 
         <div v-if="streamingUrl && !videoUrl" class="mb-6 card p-6">
-            <h2 class="text-2xl font-semibold mb-3 text-indigo-600">Link streaming:</h2>
-            <p class="mb-3 text-gray-700" v-text="streamingUrl"></p>
-            <button @click="openInVlc" class="bg-green-500 text-white p-3 rounded-lg btn">Apri in VLC</button>
+            <h2 class="text-2xl font-semibold mb-3 text-primary">Link streaming:</h2>
+            <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
+            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+                <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
+            </div>
         </div>
     </div>
 
@@ -132,6 +150,13 @@
                     this.query = suggestion.title;
                     this.searchAnime();
                     this.suggestions = [];
+                },
+                copyToClipboard(text) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        alert('Link copiato negli appunti!');
+                    }, (err) => {
+                        console.error('Errore nel copiare il testo: ', err);
+                    });
                 }
             }
         });
