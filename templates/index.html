@@ -10,8 +10,17 @@
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #6200EA;
+            --secondary-color: #3700B3;
+            --accent-color: #03DAC6;
+            --background-color: #121212;
+            --surface-color: #1E1E1E;
+            --text-color: #FFFFFF;
+        }
         body {
-            background-color: #F2F2F7;
+            background-color: var(--background-color);
+            color: var(--text-color);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             padding-top: env(safe-area-inset-top);
             padding-bottom: env(safe-area-inset-bottom);
@@ -22,47 +31,69 @@
             padding-right: 16px;
         }
         .card {
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            background-color: var(--surface-color);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
         }
-        .card:active {
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3);
-            transform: scale(0.98);
+        .card:hover, .card:active {
+            box-shadow: 0 0 0 3px var(--accent-color);
+            transform: translateY(-2px);
         }
         .btn {
-            border-radius: 10px;
+            border-radius: 24px;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         .btn-primary {
-            background-color: #007AFF;
+            background-color: var(--primary-color);
         }
         .btn-secondary {
-            background-color: #5AC8FA;
+            background-color: var(--secondary-color);
         }
         .input {
-            border-radius: 10px;
-            border: 1px solid #D1D1D6;
+            border-radius: 24px;
+            border: 2px solid var(--accent-color);
+            background-color: var(--surface-color);
+            color: var(--text-color);
         }
         .text-primary {
-            color: #007AFF;
+            color: var(--accent-color);
         }
         .search-container {
             position: relative;
         }
         .search-input {
             width: 100%;
-            padding-right: 50px;
+            padding-right: 60px;
         }
         .search-button {
             position: absolute;
-            right: 0;
-            top: 0;
-            bottom: 0;
-            width: 50px;
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 0.5rem;
         }
         .fade-enter-active, .fade-leave-active {
             transition: opacity 0.5s;
@@ -70,42 +101,32 @@
         .fade-enter, .fade-leave-to {
             opacity: 0;
         }
-        .slide-fade-enter-active {
-            transition: all 0.3s ease;
-        }
-        .slide-fade-leave-active {
-            transition: all 0.3s cubic-bezier(1.0, 0.5, 0.8, 1.0);
-        }
-        .slide-fade-enter, .slide-fade-leave-to {
-            transform: translateX(10px);
-            opacity: 0;
-        }
     </style>
 </head>
 <body>
     <div id="app" class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold mb-8 text-center text-primary">AnimeScraper by Chruis</h1>
+        <h1 class="text-4xl font-bold mb-8 text-center text-primary">AnimeSaturn Viewer</h1>
 
-        <div class="mb-6 search-container">
-            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input p-3 w-full search-input focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Cerca un anime">
-            <button @click="searchAnime" class="btn btn-primary text-white search-button flex items-center justify-center">
+        <div class="mb-8 search-container">
+            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input p-4 w-full search-input focus:outline-none focus:ring-2 focus:ring-accent-color" placeholder="Cerca un anime">
+            <button @click="searchAnime" class="btn btn-primary text-white search-button">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
             </button>
-            <div v-if="suggestions.length" class="absolute z-10 bg-white border rounded-lg mt-1 w-full shadow-lg">
-                <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-gray-100 cursor-pointer">
-                    <span v-text="suggestion.title"></span>
+            <div v-if="suggestions.length" class="absolute z-10 bg-surface-color border border-accent-color rounded-lg mt-2 w-full shadow-lg">
+                <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-accent-color hover:text-background-color cursor-pointer transition-colors duration-300">
+                    {{ suggestion.title }}
                 </div>
             </div>
         </div>
 
         <transition name="fade">
             <div v-if="animeResults.length" class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4 text-primary">Risultati della ricerca:</h2>
+                <h2 class="section-title">Risultati della ricerca</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div v-for="anime in animeResults" :key="anime.url" class="card p-4" @click="getEpisodes(anime.url)">
-                        <span class="text-lg text-primary font-medium" v-text="anime.title"></span>
+                    <div v-for="anime in animeResults" :key="anime.url" class="card p-4" @click="getEpisodes(anime)">
+                        {{ anime.title }}
                     </div>
                 </div>
             </div>
@@ -113,32 +134,22 @@
 
         <transition name="fade">
             <div v-if="episodes.length" class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
+                <h2 class="section-title">Episodi di {{ selectedAnime.title }}</h2>
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode.url)">
-                        <span class="text-primary" v-text="episode.title"></span>
+                    <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode)">
+                        {{ episode.title }}
                     </div>
                 </div>
             </div>
         </transition>
 
-        <transition name="slide-fade">
-            <div v-if="videoUrl" class="mb-6 card p-6">
-                <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
-                <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
-                <div class="flex flex-col space-y-2">
-                    <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                    <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
-                </div>
-            </div>
-        </transition>
-
-        <transition name="slide-fade">
-            <div v-if="streamingUrl && !videoUrl" class="mb-6 card p-6">
-                <h2 class="text-2xl font-semibold mb-3 text-primary">Link streaming:</h2>
-                <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
-                <div class="flex flex-col space-y-2">
-                    <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+        <transition name="fade">
+            <div v-if="videoUrl || streamingUrl" class="mb-6 card p-6">
+                <h2 class="section-title">Video trovato</h2>
+                <p class="mb-2 text-accent-color font-semibold" v-if="selectedEpisode">{{ selectedEpisode.title }}</p>
+                <p class="mb-4 text-gray-400 break-all">{{ videoUrl || streamingUrl }}</p>
+                <div class="flex flex-col space-y-3">
+                    <button @click="copyToClipboard(videoUrl || streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
                     <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
                 </div>
             </div>
@@ -154,7 +165,9 @@
                 episodes: [],
                 videoUrl: '',
                 streamingUrl: '',
-                suggestions: []
+                suggestions: [],
+                selectedAnime: null,
+                selectedEpisode: null
             },
             methods: {
                 async searchAnime() {
@@ -164,15 +177,20 @@
                     this.videoUrl = '';
                     this.streamingUrl = '';
                     this.suggestions = [];
+                    this.selectedAnime = null;
+                    this.selectedEpisode = null;
                 },
-                async getEpisodes(animeUrl) {
-                    const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
+                async getEpisodes(anime) {
+                    this.selectedAnime = anime;
+                    const response = await axios.post('/episodes', new URLSearchParams({ anime_url: anime.url }));
                     this.episodes = response.data;
                     this.videoUrl = '';
                     this.streamingUrl = '';
+                    this.selectedEpisode = null;
                 },
-                async getStreamingUrl(episodeUrl) {
-                    const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
+                async getStreamingUrl(episode) {
+                    this.selectedEpisode = episode;
+                    const response = await axios.post('/stream', new URLSearchParams({ episode_url: episode.url }));
                     if (response.data.video_url) {
                         this.videoUrl = response.data.video_url;
                         this.streamingUrl = response.data.streaming_url;
