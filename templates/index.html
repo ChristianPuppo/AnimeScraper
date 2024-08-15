@@ -97,7 +97,7 @@
             </div>
         </div>
 
-        <div v-if="episodes.length" class="mb-8">
+        <div v-if="episodes.length" ref="episodesSection" class="mb-8">
             <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode.url)">
@@ -150,6 +150,9 @@
                     this.episodes = response.data;
                     this.videoUrl = '';
                     this.streamingUrl = '';
+                    this.$nextTick(() => {
+                        this.scrollTo('episodesSection');
+                    });
                 },
                 async getStreamingUrl(episodeUrl) {
                     const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
@@ -163,10 +166,18 @@
                         alert('Errore: ' + response.data.error);
                     }
                     this.$nextTick(() => {
-                        if (this.$refs.streamingSection) {
-                            this.$refs.streamingSection.scrollIntoView({ behavior: 'smooth' });
-                        }
+                        this.scrollTo('streamingSection');
                     });
+                },
+                scrollTo(refName) {
+                    const element = this.$refs[refName];
+                    if (element) {
+                        element.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                            inline: 'nearest'
+                        });
+                    }
                 },
                 openInVlc() {
                     const url = this.videoUrl || this.streamingUrl;
