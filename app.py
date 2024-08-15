@@ -21,23 +21,7 @@ def get_episodes(anime_url):
     response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
     episodes = soup.find_all('a', class_='bottone-ep')
-    episode_data = []
-
-    for ep in episodes:
-        thumbnail_container = ep.find_previous('div', class_='container shadow rounded bg-dark-as-box mb-3 p-3 w-100 d-flex justify-content-center')
-        thumbnail_url = None
-        if thumbnail_container:
-            thumbnail_img = thumbnail_container.find('img', class_='img-fluid cover-anime rounded')
-            if thumbnail_img and 'src' in thumbnail_img.attrs:
-                thumbnail_url = thumbnail_img['src']
-
-        episode_data.append({
-            "title": ep.text.strip(),
-            "url": urljoin(BASE_URL, ep['href']),
-            "thumbnail": thumbnail_url
-        })
-
-    return episode_data
+    return [{"title": ep.text.strip(), "url": urljoin(BASE_URL, ep['href'])} for ep in episodes]
 
 def get_streaming_url(episode_url):
     response = requests.get(episode_url)
@@ -99,7 +83,7 @@ def search():
 @app.route('/search_suggestions', methods=['POST'])
 def search_suggestions():
     query = request.form['query']
-    results = search_anime(query)[:5]  # Limita a 5 suggerimenti
+    results = search_anime(query)[:10]  # Limita a 10 suggerimenti
     return jsonify(results)
 
 @app.route('/episodes', methods=['POST'])
