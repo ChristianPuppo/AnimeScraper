@@ -11,7 +11,8 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #F2F2F7;
+            background-color: #1F2937;
+            color: #E5E7EB;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             padding-top: env(safe-area-inset-top);
             padding-bottom: env(safe-area-inset-bottom);
@@ -22,31 +23,41 @@
             padding-right: 16px;
         }
         .card {
-            background-color: white;
+            background-color: #374151;
             border-radius: 10px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
         }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+        }
         .card:active {
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3);
             transform: scale(0.98);
         }
         .btn {
             border-radius: 10px;
             font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         .btn-primary {
-            background-color: #007AFF;
+            background-color: #3B82F6;
         }
         .btn-secondary {
-            background-color: #5AC8FA;
+            background-color: #10B981;
         }
         .input {
             border-radius: 10px;
-            border: 1px solid #D1D1D6;
+            border: 1px solid #4B5563;
+            background-color: #2D3748;
+            color: #E5E7EB;
         }
         .text-primary {
-            color: #007AFF;
+            color: #60A5FA;
         }
         .search-container {
             position: relative;
@@ -80,11 +91,14 @@
             transform: translateX(10px);
             opacity: 0;
         }
+        .scroll-to {
+            scroll-behavior: smooth;
+        }
     </style>
 </head>
 <body>
     <div id="app" class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold mb-8 text-center text-primary">AnimeScraper by Chruis</h1>
+        <h1 class="text-4xl font-bold mb-8 text-center text-primary">AnimeSaturn Viewer</h1>
 
         <div class="mb-6 search-container">
             <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input p-3 w-full search-input focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Cerca un anime">
@@ -93,8 +107,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
             </button>
-            <div v-if="suggestions.length" class="absolute z-10 bg-white border rounded-lg mt-1 w-full shadow-lg">
-                <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-gray-100 cursor-pointer">
+            <div v-if="suggestions.length" class="absolute z-10 bg-gray-700 border border-gray-600 rounded-lg mt-1 w-full shadow-lg">
+                <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-gray-600 cursor-pointer">
                     <span v-text="suggestion.title"></span>
                 </div>
             </div>
@@ -103,8 +117,8 @@
         <transition name="fade">
             <div v-if="animeResults.length" class="mb-8">
                 <h2 class="text-2xl font-semibold mb-4 text-primary">Risultati della ricerca:</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div v-for="anime in animeResults" :key="anime.url" class="card p-4" @click="getEpisodes(anime.url)">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div v-for="anime in animeResults" :key="anime.url" class="card p-4 cursor-pointer hover:bg-gray-600" @click="getEpisodes(anime.url)">
                         <span class="text-lg text-primary font-medium" v-text="anime.title"></span>
                     </div>
                 </div>
@@ -115,7 +129,7 @@
             <div v-if="episodes.length" class="mb-8">
                 <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode.url)">
+                    <div v-for="episode in episodes" :key="episode.url" class="card p-4 cursor-pointer hover:bg-gray-600" @click="getStreamingUrl(episode.url)">
                         <span class="text-primary" v-text="episode.title"></span>
                     </div>
                 </div>
@@ -123,22 +137,11 @@
         </transition>
 
         <transition name="slide-fade">
-            <div v-if="videoUrl" class="mb-6 card p-6">
-                <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
-                <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
+            <div v-if="videoUrl || streamingUrl" ref="streamingSection" class="mb-6 card p-6">
+                <h2 class="text-2xl font-semibold mb-3 text-primary">{{ videoUrl ? 'Video trovato:' : 'Link streaming:' }}</h2>
+                <p class="mb-3 text-gray-300 break-all" v-text="videoUrl || streamingUrl"></p>
                 <div class="flex flex-col space-y-2">
-                    <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                    <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
-                </div>
-            </div>
-        </transition>
-
-        <transition name="slide-fade">
-            <div v-if="streamingUrl && !videoUrl" class="mb-6 card p-6">
-                <h2 class="text-2xl font-semibold mb-3 text-primary">Link streaming:</h2>
-                <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
-                <div class="flex flex-col space-y-2">
-                    <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+                    <button @click="copyToClipboard(videoUrl || streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
                     <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
                 </div>
             </div>
@@ -182,6 +185,11 @@
                     } else {
                         alert('Errore: ' + response.data.error);
                     }
+                    this.$nextTick(() => {
+                        if (this.$refs.streamingSection) {
+                            this.$refs.streamingSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    });
                 },
                 openInVlc() {
                     const url = this.videoUrl || this.streamingUrl;
