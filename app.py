@@ -11,10 +11,12 @@ BASE_URL = "https://www.animesaturn.mx"
 
 def search_anime(query):
     search_url = urljoin(BASE_URL, f"/animelist?search={query}")
+    print(f"URL di ricerca: {search_url}")
     response = requests.get(search_url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
     results = soup.find_all('div', class_='row bg-dark-as-box mb-2')
+    print(f"Trovati {len(results)} risultati grezzi")
     anime_data = []
 
     for result in results:
@@ -32,6 +34,7 @@ def search_anime(query):
                 "thumbnail": image_url
             })
 
+    print(f"Elaborati {len(anime_data)} risultati validi")
     return anime_data
 
 
@@ -117,14 +120,20 @@ def index():
 @app.route('/search', methods=['POST'])
 def search():
     query = request.form['query']
-    results = search_anime(query)
-    return jsonify(results)
+    print(f"Ricevuta richiesta di ricerca per: {query}")
+    try:
+        results = search_anime(query)
+        print(f"Trovati {len(results)} risultati")
+        return jsonify(results)
+    except Exception as e:
+        print(f"Errore durante la ricerca: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/search_suggestions', methods=['POST'])
 def search_suggestions():
     query = request.form['query']
-    results = search_anime(query)[:5]  # Limita a 5 suggerimenti
+    results = search_anime(query)[:10]  # Limita a 5 suggerimenti
     return jsonify(results)
 
 
