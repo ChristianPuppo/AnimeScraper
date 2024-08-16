@@ -6,8 +6,10 @@ from urllib.parse import urljoin
 import subprocess
 import os
 import tempfile
+import logging
 
 app = Flask(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 BASE_URL = "https://www.animesaturn.mx"
 
@@ -141,6 +143,9 @@ def extract_all_video_urls(episode_urls):
 def download_episode():
     video_url = request.form['video_url']
 
+    if not video_url:
+        return jsonify({"error": "URL del video non fornito"}), 400
+
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
         output_filename = temp_file.name
 
@@ -161,16 +166,25 @@ def download_episode():
                 output_filename
             ]
 
+        app.logger.debug(f"Executing FFmpeg command: {' '.join(ffmpeg_command)}")
+
         process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate()
 
         if process.returncode != 0:
-            return jsonify({"error": f"FFmpeg error: {stderr.decode()}"}), 500
+            error_message = stderr.decode()
+            app.logger.error(f"FFmpeg error: {error_message}")
+            return jsonify({"error": f"FFmpeg error: {error_message}"}), 500
+
+        if not os.path.exists(output_filename) or os.path.getsize(output_filename) == 0:
+            return jsonify({"error": "File di output non creato o vuoto"}), 500
 
         return send_file(output_filename, as_attachment=True, download_name='episode.mp4')
     except subprocess.CalledProcessError as e:
+        app.logger.error(f"Error during download: {str(e)}")
         return jsonify({"error": f"Error during download: {str(e)}"}), 500
     except Exception as e:
+        app.logger.error(f"Unexpected error: {str(e)}")
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
     finally:
         if os.path.exists(output_filename):

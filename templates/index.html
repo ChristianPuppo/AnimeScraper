@@ -262,22 +262,31 @@
                         fluid: true,
                         sources: [{
                             src: this.videoUrl || this.streamingUrl,
-                            type: (this.videoUrl || this.streamingUrl).includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
+                            type: this.getVideoType(this.videoUrl || this.streamingUrl)
                         }]
                     };
 
                     this.player = videojs('my-video', videoJsOptions, function onPlayerReady() {
+                        console.log('Player is ready');
                         this.on('error', function() {
-                            console.error('Errore del player:', this.error());
+                            console.error('Player error:', this.error());
                         });
                     });
 
                     this.player.ready(() => {
                         this.player.src({
                             src: this.videoUrl || this.streamingUrl,
-                            type: (this.videoUrl || this.streamingUrl).includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
+                            type: this.getVideoType(this.videoUrl || this.streamingUrl)
                         });
                     });
+                },
+                getVideoType(url) {
+                    if (url.includes('.m3u8')) {
+                        return 'application/x-mpegURL';
+                    } else if (url.includes('.mp4')) {
+                        return 'video/mp4';
+                    }
+                    return 'application/x-mpegURL'; // Default to HLS
                 }
             }
         });
