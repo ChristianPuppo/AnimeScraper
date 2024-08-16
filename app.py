@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response,  stream_with_context
+from flask import Flask, render_template, request, jsonify, Response
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -122,25 +122,28 @@ def get_all_episode_urls(anime_url):
     episodes = get_episodes(anime_url)
     return [episode['url'] for episode in episodes]
 
+
 def extract_all_video_urls(episode_urls):
+    video_urls = []
     for url in episode_urls:
         streaming_url = get_streaming_url(url)
         if streaming_url:
             video_url = extract_video_url(streaming_url)
             if video_url and video_url.endswith('.mp4'):
-                yield video_url
+                video_urls.append(video_url)
+    return video_urls
+
 
 @app.route('/download_season', methods=['POST'])
 def download_season():
     anime_url = request.form['anime_url']
     episode_urls = get_all_episode_urls(anime_url)
+    video_urls = extract_all_video_urls(episode_urls)
 
-    def generate():
-        for video_url in extract_all_video_urls(episode_urls):
-            yield video_url + '\n'
+    links_content = '\n'.join(video_urls)
 
     return Response(
-        stream_with_context(generate()),
+        links_content,
         mimetype='text/plain',
         headers={'Content-Disposition': 'attachment; filename=anime.links'}
     )
