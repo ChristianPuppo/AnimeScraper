@@ -9,9 +9,6 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://vjs.zencdn.net/7.20.3/video-js.min.css" rel="stylesheet">
-    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.15.0/videojs-contrib-hls.min.js"></script>
     <style>
         body {
             background-color: #F2F2F7;
@@ -91,8 +88,6 @@
             </div>
         </div>
 
-        <button @click="resetSearch" class="btn btn-secondary text-white p-3 mb-6 w-full">Ricomincia la ricerca</button>
-
         <div v-if="animeResults.length" class="mb-8">
             <h2 class="text-2xl font-semibold mb-4 text-primary">Risultati della ricerca:</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -111,16 +106,21 @@
             </div>
         </div>
 
-        <div v-if="videoUrl || streamingUrl" ref="streamingSection" class="mb-6 card p-6">
+        <div v-if="videoUrl" ref="streamingSection" class="mb-6 card p-6">
             <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
-            <div class="mb-4">
-                <video-js id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" width="640" height="360"></video-js>
-            </div>
-            <p class="mb-3 text-gray-700 break-all" v-text="videoUrl || streamingUrl"></p>
+            <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
             <div class="flex flex-col space-y-2">
-                <button @click="copyToClipboard(videoUrl || streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+                <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
                 <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
-                <button @click="downloadEpisode" class="btn bg-green-500 hover:bg-green-600 text-white p-3">Scarica Episodio</button>
+            </div>
+        </div>
+
+        <div v-if="streamingUrl && !videoUrl" ref="streamingSection" class="mb-6 card p-6">
+            <h2 class="text-2xl font-semibold mb-3 text-primary">Link streaming:</h2>
+            <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
+            <div class="flex flex-col space-y-2">
+                <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+                <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
             </div>
         </div>
     </div>
@@ -134,9 +134,7 @@
                 episodes: [],
                 videoUrl: '',
                 streamingUrl: '',
-                suggestions: [],
-                player: null,
-                downloadError: ''
+                suggestions: []
             },
             methods: {
                 async searchAnime() {
@@ -169,7 +167,6 @@
                     }
                     this.$nextTick(() => {
                         this.scrollTo('streamingSection');
-                        this.initVideoPlayer();
                     });
                 },
                 scrollTo(refName) {
@@ -205,88 +202,6 @@
                     }, (err) => {
                         console.error('Errore nel copiare il testo: ', err);
                     });
-                },
-                async downloadEpisode() {
-                    try {
-                        const response = await axios.post('/download_episode', new URLSearchParams({ video_url: this.videoUrl || this.streamingUrl }), {
-                            responseType: 'blob'
-                        });
-
-                        if (response.data.type && response.data.type.includes('application/json')) {
-                            // Se la risposta è JSON, probabilmente è un messaggio di errore
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                                const errorMessage = JSON.parse(reader.result).error;
-                                this.downloadError = errorMessage;
-                                alert('Errore durante il download: ' + errorMessage);
-                            };
-                            reader.readAsText(response.data);
-                        } else {
-                            // Se la risposta è un blob, procedi con il download
-                            const url = window.URL.createObjectURL(new Blob([response.data]));
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.setAttribute('download', 'episode.mp4');
-                            document.body.appendChild(link);
-                            link.click();
-                            link.remove();
-                            alert('Download completato!');
-                        }
-                    } catch (error) {
-                        console.error('Errore durante il download dell\'episodio:', error);
-                        this.downloadError = error.message;
-                        alert('Si è verificato un errore durante il download dell\'episodio: ' + error.message);
-                    }
-                },
-                resetSearch() {
-                    this.query = '';
-                    this.animeResults = [];
-                    this.episodes = [];
-                    this.videoUrl = '';
-                    this.streamingUrl = '';
-                    this.suggestions = [];
-                    if (this.player) {
-                        this.player.dispose();
-                        this.player = null;
-                    }
-                },
-                initVideoPlayer() {
-                    if (this.player) {
-                        this.player.dispose();
-                    }
-
-                    const videoJsOptions = {
-                        autoplay: false,
-                        controls: true,
-                        responsive: true,
-                        fluid: true,
-                        sources: [{
-                            src: this.videoUrl || this.streamingUrl,
-                            type: this.getVideoType(this.videoUrl || this.streamingUrl)
-                        }]
-                    };
-
-                    this.player = videojs('my-video', videoJsOptions, function onPlayerReady() {
-                        console.log('Player is ready');
-                        this.on('error', function() {
-                            console.error('Player error:', this.error());
-                        });
-                    });
-
-                    this.player.ready(() => {
-                        this.player.src({
-                            src: this.videoUrl || this.streamingUrl,
-                            type: this.getVideoType(this.videoUrl || this.streamingUrl)
-                        });
-                    });
-                },
-                getVideoType(url) {
-                    if (url.includes('.m3u8')) {
-                        return 'application/x-mpegURL';
-                    } else if (url.includes('.mp4')) {
-                        return 'video/mp4';
-                    }
-                    return 'application/x-mpegURL'; // Default to HLS
                 }
             }
         });
