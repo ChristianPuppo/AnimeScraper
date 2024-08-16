@@ -1,8 +1,11 @@
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, send_file
 import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
+import subprocess
+import os
+import tempfile
 
 app = Flask(__name__)
 
@@ -134,19 +137,30 @@ def extract_all_video_urls(episode_urls):
     return video_urls
 
 
-@app.route('/download_season', methods=['POST'])
-def download_season():
-    anime_url = request.form['anime_url']
-    episode_urls = get_all_episode_urls(anime_url)
-    video_urls = extract_all_video_urls(episode_urls)
+@app.route('/download_episode', methods=['POST'])
+def download_episode():
+    video_url = request.form['video_url']
 
-    links_content = '\n'.join(video_urls)
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+        output_filename = temp_file.name
 
-    return Response(
-        links_content,
-        mimetype='text/plain',
-        headers={'Content-Disposition': 'attachment; filename=anime.links'}
-    )
+    try:
+        ffmpeg_command = [
+            'ffmpeg',
+            '-i', video_url,
+            '-c', 'copy',
+            output_filename
+        ]
+
+        subprocess.run(ffmpeg_command, check=True)
+
+        return send_file(output_filename, as_attachment=True, download_name='episode.mp4')
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": f"Error during download: {str(e)}"})
+    finally:
+        if os.path.exists(output_filename):
+            os.remove(output_filename)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
