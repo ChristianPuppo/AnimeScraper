@@ -68,6 +68,20 @@
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
         }
+        .progress-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            padding: 3px;
+            border-radius: 3px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, .2);
+        }
+        .progress-bar-fill {
+            display: block;
+            height: 22px;
+            background-color: #659cef;
+            border-radius: 3px;
+            transition: width 500ms ease-in-out;
+        }
     </style>
 </head>
 <body>
@@ -106,23 +120,19 @@
             </div>
         </div>
 
-        <div v-if="videoUrl" ref="streamingSection" class="mb-6 card p-6">
-            <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
-            <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
+        <div v-if="videoUrl || (streamingUrl && !videoUrl)" ref="streamingSection" class="mb-6 card p-6">
+            <h2 class="text-2xl font-semibold mb-3 text-primary">{{ videoUrl ? 'Video trovato:' : 'Link streaming:' }}</h2>
+            <p class="mb-3 text-gray-700 break-all" v-text="videoUrl || streamingUrl"></p>
             <div class="flex flex-col space-y-2">
-                <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+                <button @click="copyToClipboard(videoUrl || streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
                 <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
                 <button @click="downloadSeason" class="btn bg-green-500 hover:bg-green-600 text-white p-3">Scarica Stagione</button>
-            </div>
-        </div>
-
-        <div v-if="streamingUrl && !videoUrl" ref="streamingSection" class="mb-6 card p-6">
-            <h2 class="text-2xl font-semibold mb-3 text-primary">Link streaming:</h2>
-            <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
-            <div class="flex flex-col space-y-2">
-                <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
-                <button @click="downloadSeason" class="btn bg-green-500 hover:bg-green-600 text-white p-3">Scarica Stagione</button>
+                <div v-if="isDownloading" class="mt-4">
+                    <div class="progress-bar">
+                        <span class="progress-bar-fill" :style="{ width: downloadProgress + '%' }"></span>
+                    </div>
+                    <p class="text-center mt-2">{{ downloadProgress }}%</p>
+                </div>
             </div>
         </div>
     </div>
@@ -136,7 +146,9 @@
                 episodes: [],
                 videoUrl: '',
                 streamingUrl: '',
-                suggestions: []
+                suggestions: [],
+                isDownloading: false,
+                downloadProgress: 0
             },
             methods: {
                 async searchAnime() {
@@ -206,21 +218,35 @@
                     });
                 },
                 async downloadSeason() {
+                    this.isDownloading = true;
+                    this.downloadProgress = 0;
                     try {
-                        const response = await axios.post('/download_season', new URLSearchParams({ anime_url: this.animeResults[0].url }), {
-                            responseType: 'blob'
-                        });
-                        const url = window.URL.createObjectURL(new Blob([response.data]));
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.setAttribute('download', 'anime.links');
-                        document.body.appendChild(link);
-                        link.click();
-                        link.remove();
-                        alert('Download completato!');
+                        const response = await axios.post('/download_season',
+                            new URLSearchParams({ anime_url: this.animeResults[0].url }),
+                            {
+                                responseType: 'blob',
+                                onDownloadProgress: (progressEvent) => {
+                                    this.downloadProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                                }
+                            }
+                        );
+
+                        if (this.downloadProgress === 100) {
+                            const url = window.URL.createObjectURL(new Blob([response.data]));
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.setAttribute('download', 'anime.links');
+                            document.body.appendChild(link);
+                            link.click();
+                            link.remove();
+                            alert('Download completato!');
+                        }
                     } catch (error) {
                         console.error('Errore durante il download della stagione:', error);
                         alert('Si è verificato un errore durante il download della stagione.');
+                    } finally {
+                        this.isDownloading = false;
+                        this.downloadProgress = 0;
                     }
                 }
             }
