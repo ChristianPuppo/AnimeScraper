@@ -145,18 +145,33 @@ def download_episode():
         output_filename = temp_file.name
 
     try:
-        ffmpeg_command = [
-            'ffmpeg',
-            '-i', video_url,
-            '-c', 'copy',
-            output_filename
-        ]
+        if video_url.endswith('.m3u8'):
+            ffmpeg_command = [
+                'ffmpeg',
+                '-i', video_url,
+                '-c', 'copy',
+                '-bsf:a', 'aac_adtstoasc',
+                output_filename
+            ]
+        else:
+            ffmpeg_command = [
+                'ffmpeg',
+                '-i', video_url,
+                '-c', 'copy',
+                output_filename
+            ]
 
-        subprocess.run(ffmpeg_command, check=True)
+        process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            return jsonify({"error": f"FFmpeg error: {stderr.decode()}"}), 500
 
         return send_file(output_filename, as_attachment=True, download_name='episode.mp4')
     except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"Error during download: {str(e)}"})
+        return jsonify({"error": f"Error during download: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
     finally:
         if os.path.exists(output_filename):
             os.remove(output_filename)
