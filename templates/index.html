@@ -112,6 +112,7 @@
             <div class="flex flex-col space-y-2">
                 <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
                 <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
+                <button @click="downloadSeason" class="btn bg-green-500 hover:bg-green-600 text-white p-3">Scarica Stagione</button>
             </div>
         </div>
 
@@ -121,6 +122,7 @@
             <div class="flex flex-col space-y-2">
                 <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
                 <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
+                <button @click="downloadSeason" class="btn bg-green-500 hover:bg-green-600 text-white p-3">Scarica Stagione</button>
             </div>
         </div>
     </div>
@@ -202,6 +204,24 @@
                     }, (err) => {
                         console.error('Errore nel copiare il testo: ', err);
                     });
+                },
+                async downloadSeason() {
+                    try {
+                        const response = await axios.post('/download_season', new URLSearchParams({ anime_url: this.animeResults[0].url }), {
+                            responseType: 'blob'
+                        });
+                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', 'anime.links');
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        alert('Download completato!');
+                    } catch (error) {
+                        console.error('Errore durante il download della stagione:', error);
+                        alert('Si è verificato un errore durante il download della stagione.');
+                    }
                 }
             }
         });
