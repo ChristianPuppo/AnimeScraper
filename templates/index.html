@@ -5,136 +5,123 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Anime Scraper</title>
+    <title>AnimeSaturn Viewer</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #121212;
-            color: #ffffff;
+            background-color: #F2F2F7;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
         }
         .container {
             max-width: 100%;
-            padding: 16px;
+            padding-left: 16px;
+            padding-right: 16px;
         }
         .card {
-            background-color: #1e1e1e;
+            background-color: white;
             border-radius: 10px;
-            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
         }
+        .card:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
         .card:active {
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3);
             transform: scale(0.98);
         }
         .btn {
-            border-radius: 5px;
+            border-radius: 10px;
             font-weight: 600;
-            padding: 8px 16px;
         }
         .btn-primary {
-            background-color: #4CAF50;
+            background-color: #007AFF;
         }
         .btn-secondary {
-            background-color: #2196F3;
+            background-color: #5AC8FA;
+        }
+        .input {
+            border-radius: 10px;
+            border: 1px solid #D1D1D6;
+        }
+        .text-primary {
+            color: #007AFF;
+        }
+        .search-container {
+            position: relative;
         }
         .search-input {
-            background-color: #333333;
-            color: #ffffff;
-            border: none;
-            border-radius: 5px;
-            padding: 10px;
-        }
-        .thumbnail {
             width: 100%;
-            height: 150px;
-            object-fit: cover;
+            padding-right: 50px;
         }
-        .episode-btn {
-            background-color: #333333;
-            color: #ffffff;
-            border: none;
-            border-radius: 5px;
-            padding: 5px;
-            margin: 2px;
-            font-size: 12px;
-        }
-        .episode-btn.active {
-            background-color: #4CAF50;
+        .search-button {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 50px;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
         }
     </style>
 </head>
 <body>
     <div id="app" class="container mx-auto p-4">
-        <h1 class="text-2xl font-bold mb-8 text-center text-green-500">Anime Scraper</h1>
+        <h1 class="text-3xl font-bold mb-8 text-center text-primary">AnimeSaturn Viewer</h1>
 
-        <div class="mb-6">
-            <input v-model="query" @keyup.enter="searchAnime" class="search-input w-full mb-2" placeholder="Cerca un anime">
-            <button @click="searchAnime" class="btn btn-primary w-full">Cerca</button>
-        </div>
-
-        <div v-if="recommended.length && !query" class="mb-6">
-            <h2 class="text-xl font-semibold mb-4">Consigliati</h2>
-            <div class="grid grid-cols-2 gap-4">
-                <div v-for="anime in recommended" :key="anime.url" class="card" @click="selectAnime(anime)">
-                    <img :src="anime.thumbnail" :alt="anime.title" class="thumbnail">
-                    <div class="p-2">
-                        <h3 class="text-sm font-semibold" v-text="anime.title"></h3>
-                        <p class="text-xs text-gray-400">{{ anime.seasons }} Stagioni</p>
-                        <p class="text-xs text-gray-400">⭐ {{ anime.rating }}/5</p>
-                    </div>
+        <div class="mb-6 search-container">
+            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input p-3 w-full search-input focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Cerca un anime">
+            <button @click="searchAnime" class="btn btn-primary text-white search-button flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </button>
+            <div v-if="suggestions.length" class="absolute z-10 bg-white border rounded-lg mt-1 w-full shadow-lg">
+                <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-gray-100 cursor-pointer">
+                    <span v-text="suggestion.title"></span>
                 </div>
             </div>
         </div>
 
-        <div v-if="animeResults.length" class="mb-6">
-            <h2 class="text-xl font-semibold mb-4">Risultati della ricerca</h2>
-            <div class="grid grid-cols-2 gap-4">
-                <div v-for="anime in animeResults" :key="anime.url" class="card" @click="selectAnime(anime)">
-                    <img :src="anime.thumbnail" :alt="anime.title" class="thumbnail">
-                    <div class="p-2">
-                        <h3 class="text-sm font-semibold" v-text="anime.title"></h3>
-                        <p v-if="anime.seasons" class="text-xs text-gray-400">{{ anime.seasons }} Stagioni</p>
-                        <p v-if="anime.rating" class="text-xs text-gray-400">⭐ {{ anime.rating }}/5</p>
-                    </div>
+        <div v-if="animeResults.length" class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-primary">Risultati della ricerca:</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div v-for="anime in animeResults" :key="anime.url" class="card p-4" @click="getEpisodes(anime.url)">
+                    <span class="text-lg text-primary font-medium" v-text="anime.title"></span>
                 </div>
             </div>
         </div>
 
-        <div v-if="selectedAnime" class="mt-8">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-xl font-semibold" v-text="selectedAnime.title"></h2>
-                <p class="text-sm text-gray-400">⭐ {{ selectedAnime.rating }}/5</p>
-            </div>
-            <img :src="selectedAnime.thumbnail" :alt="selectedAnime.title" class="w-full h-48 object-cover rounded-lg mb-4">
-            <div class="grid grid-cols-4 gap-2 mb-4">
-                <button
-                    v-for="i in selectedAnime.seasons"
-                    :key="i"
-                    class="btn"
-                    :class="{'btn-primary': currentSeason === i, 'btn-secondary': currentSeason !== i}"
-                    @click="currentSeason = i"
-                >
-                    S{{ i }}
-                </button>
-            </div>
-            <div v-if="episodes.length" class="grid grid-cols-4 gap-2">
-                <button
-                    v-for="episode in filteredEpisodes"
-                    :key="episode.url"
-                    class="episode-btn"
-                    :class="{'active': episode.url === currentEpisodeUrl}"
-                    @click="playEpisode(episode)"
-                >
-                    E{{ episode.number }}
-                </button>
+        <div v-if="episodes.length" ref="episodesSection" class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode.url)">
+                    <span class="text-primary" v-text="episode.title"></span>
+                </div>
             </div>
         </div>
 
-        <div v-if="videoUrl" class="mt-8">
-            <h3 class="text-lg font-semibold mb-2">Video Player</h3>
-            <video :src="videoUrl" controls class="w-full rounded-lg"></video>
+        <div v-if="videoUrl" ref="streamingSection" class="mb-6 card p-6">
+            <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
+            <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
+            <div class="flex flex-col space-y-2">
+                <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+                <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
+            </div>
+        </div>
+
+        <div v-if="streamingUrl && !videoUrl" ref="streamingSection" class="mb-6 card p-6">
+            <h2 class="text-2xl font-semibold mb-3 text-primary">Link streaming:</h2>
+            <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
+            <div class="flex flex-col space-y-2">
+                <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+                <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
+            </div>
         </div>
     </div>
 
@@ -146,74 +133,75 @@
                 animeResults: [],
                 episodes: [],
                 videoUrl: '',
-                selectedAnime: null,
-                currentSeason: 1,
-                currentEpisodeUrl: '',
-                recommended: [
-                    { title: "Attack On Titan", seasons: 3, rating: 4.7, thumbnail: "https://example.com/aot.jpg", url: "https://example.com/aot" },
-                    { title: "Sword Art Online", seasons: 4, rating: 4.2, thumbnail: "https://example.com/sao.jpg", url: "https://example.com/sao" },
-                ]
-            },
-            computed: {
-                filteredEpisodes() {
-                    return this.episodes.filter(episode => episode.season === this.currentSeason);
-                }
+                streamingUrl: '',
+                suggestions: []
             },
             methods: {
                 async searchAnime() {
-                    const response = await axios.post('/search', { query: this.query });
-                    this.animeResults = response.data.map(anime => ({
-                        ...anime,
-                        thumbnail: this.extractThumbnail(anime.html),
-                        seasons: this.getRandomSeasons(),
-                        rating: this.getRandomRating()
-                    }));
-                },
-                async selectAnime(anime) {
-                    this.selectedAnime = anime;
-                    this.currentSeason = 1;
-                    this.currentEpisodeUrl = '';
+                    const response = await axios.post('/search', new URLSearchParams({ query: this.query }));
+                    this.animeResults = response.data;
+                    this.episodes = [];
                     this.videoUrl = '';
-                    await this.getEpisodes(anime.url);
-                    await this.getAnimeDetails(anime.url);
+                    this.streamingUrl = '';
+                    this.suggestions = [];
                 },
                 async getEpisodes(animeUrl) {
-                    const response = await axios.post('/episodes', { anime_url: animeUrl });
-                    this.episodes = response.data.map(episode => ({
-                        ...episode,
-                        season: this.getRandomSeason(),
-                        number: this.getEpisodeNumber(episode.title)
-                    }));
+                    const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
+                    this.episodes = response.data;
+                    this.videoUrl = '';
+                    this.streamingUrl = '';
+                    this.$nextTick(() => {
+                        this.scrollTo('episodesSection');
+                    });
                 },
-                async getAnimeDetails(animeUrl) {
-                    const response = await axios.post('/anime_details', { anime_url: animeUrl });
-                    this.selectedAnime.rating = this.extractRating(response.data);
+                async getStreamingUrl(episodeUrl) {
+                    const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
+                    if (response.data.video_url) {
+                        this.videoUrl = response.data.video_url;
+                        this.streamingUrl = response.data.streaming_url;
+                    } else if (response.data.streaming_url) {
+                        this.streamingUrl = response.data.streaming_url;
+                        this.videoUrl = '';
+                    } else {
+                        alert('Errore: ' + response.data.error);
+                    }
+                    this.$nextTick(() => {
+                        this.scrollTo('streamingSection');
+                    });
                 },
-                async playEpisode(episode) {
-                    this.currentEpisodeUrl = episode.url;
-                    const response = await axios.post('/stream', { episode_url: episode.url });
-                    this.videoUrl = response.data.video_url;
+                scrollTo(refName) {
+                    const element = this.$refs[refName];
+                    if (element) {
+                        element.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                            inline: 'nearest'
+                        });
+                    }
                 },
-                extractThumbnail(html) {
-                    const match = html.match(/src="(https:\/\/cdn\.animesaturn\.mx\/static\/images\/copertine\/.*?\.jpg)"/);
-                    return match ? match[1] : 'https://via.placeholder.com/300x450';
+                openInVlc() {
+                    const url = this.videoUrl || this.streamingUrl;
+                    window.open('vlc://' + url);
                 },
-                extractRating(html) {
-                    const match = html.match(/<b>Voto:<\/b> ([\d.]+)\/5/);
-                    return match ? match[1] : (Math.random() * 2 + 3).toFixed(2);
+                async getSuggestions() {
+                    if (this.query.length > 2) {
+                        const response = await axios.post('/search_suggestions', new URLSearchParams({ query: this.query }));
+                        this.suggestions = response.data;
+                    } else {
+                        this.suggestions = [];
+                    }
                 },
-                getRandomSeasons() {
-                    return Math.floor(Math.random() * 4) + 1;
+                selectSuggestion(suggestion) {
+                    this.query = suggestion.title;
+                    this.searchAnime();
+                    this.suggestions = [];
                 },
-                getRandomSeason() {
-                    return Math.floor(Math.random() * this.selectedAnime.seasons) + 1;
-                },
-                getRandomRating() {
-                    return (Math.random() * 2 + 3).toFixed(2);
-                },
-                getEpisodeNumber(title) {
-                    const match = title.match(/Episodio (\d+)/);
-                    return match ? parseInt(match[1]) : 1;
+                copyToClipboard(text) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        alert('Link copiato negli appunti!');
+                    }, (err) => {
+                        console.error('Errore nel copiare il testo: ', err);
+                    });
                 }
             }
         });
