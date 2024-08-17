@@ -5,123 +5,179 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>AnimeSaturn Viewer</title>
+    <title>Anime Scraper</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #F2F2F7;
+            background-color: #1E1E1E;
+            color: white;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
+            margin: 0;
+            padding: 16px;
         }
-        .container {
-            max-width: 100%;
-            padding-left: 16px;
-            padding-right: 16px;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
         }
-        .card {
-            background-color: white;
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .search-bar {
+            background-color: #2C2C2E;
             border-radius: 10px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
-        }
-        .card:hover {
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transform: translateY(-2px);
-        }
-        .card:active {
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3);
-            transform: scale(0.98);
-        }
-        .btn {
-            border-radius: 10px;
-            font-weight: 600;
-        }
-        .btn-primary {
-            background-color: #007AFF;
-        }
-        .btn-secondary {
-            background-color: #5AC8FA;
-        }
-        .input {
-            border-radius: 10px;
-            border: 1px solid #D1D1D6;
-        }
-        .text-primary {
-            color: #007AFF;
-        }
-        .search-container {
-            position: relative;
+            padding: 8px 16px;
+            margin-bottom: 16px;
         }
         .search-input {
+            background: transparent;
+            border: none;
+            color: white;
             width: 100%;
-            padding-right: 50px;
+            font-size: 16px;
         }
-        .search-button {
-            position: absolute;
-            right: 0;
-            top: 0;
-            bottom: 0;
-            width: 50px;
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
+        .search-input::placeholder {
+            color: #8E8E93;
+        }
+        .search-input:focus {
+            outline: none;
+        }
+        .recommended {
+            font-size: 20px;
+            font-weight: bold;
+            color: #32D74B;
+            margin-bottom: 16px;
+        }
+        .anime-card {
+            background-color: #2C2C2E;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .anime-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .anime-info {
+            padding: 16px;
+        }
+        .anime-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .anime-seasons {
+            font-size: 14px;
+            color: #8E8E93;
+        }
+        .anime-rating {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: #8E8E93;
+        }
+        .star-icon {
+            color: #FFD700;
+            margin-right: 4px;
+        }
+        .episode-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .episode-button {
+            background-color: #32D74B;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .video-player {
+            background-color: #2C2C2E;
+            border-radius: 10px;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 16px;
+        }
+        .suggestions {
+            background-color: #2C2C2E;
+            border-radius: 10px;
+            margin-top: -16px;
+            margin-bottom: 16px;
+            padding: 8px 0;
+        }
+        .suggestion-item {
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background-color: #3A3A3C;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+        }
+        .error {
+            background-color: #FF453A;
+            color: white;
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
         }
     </style>
 </head>
 <body>
-    <div id="app" class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold mb-8 text-center text-primary">AnimeSaturn Viewer</h1>
+    <div id="app">
+        <div class="header">
+            <span class="title">Anime Scraper</span>
+            <span>by chrulx</span>
+        </div>
 
-        <div class="mb-6 search-container">
-            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input p-3 w-full search-input focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Cerca un anime">
-            <button @click="searchAnime" class="btn btn-primary text-white search-button flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-            </button>
-            <div v-if="suggestions.length" class="absolute z-10 bg-white border rounded-lg mt-1 w-full shadow-lg">
-                <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-gray-100 cursor-pointer">
-                    <span v-text="suggestion.title"></span>
+        <div class="search-bar">
+            <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="search-input" placeholder="Search">
+        </div>
+
+        <div v-if="suggestions.length" class="suggestions">
+            <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="suggestion-item">
+                {{ suggestion.title }}
+            </div>
+        </div>
+
+        <div v-if="error" class="error">{{ error }}</div>
+
+        <div v-if="loading" class="loading">Caricamento...</div>
+
+        <div v-if="!loading && !animeResults.length" class="recommended">Consigliati</div>
+
+        <div v-for="anime in animeResults" :key="anime.url" class="anime-card">
+            <img :src="anime.thumbnail" :alt="anime.title" class="anime-image">
+            <div class="anime-info">
+                <div class="anime-title">{{ anime.title }}</div>
+                <div v-if="anime.seasons" class="anime-seasons">{{ anime.seasons }} Stagioni</div>
+                <div v-if="anime.rating" class="anime-rating">
+                    <span class="star-icon">★</span>
+                    {{ anime.rating }}
+                </div>
+                <div v-if="anime.episodes" class="episode-grid">
+                    <button v-for="episode in anime.episodes" :key="episode.url" class="episode-button" @click="getStreamingUrl(episode.url)">
+                        {{ episode.title }}
+                    </button>
                 </div>
             </div>
         </div>
 
-        <div v-if="animeResults.length" class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4 text-primary">Risultati della ricerca:</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div v-for="anime in animeResults" :key="anime.url" class="card p-4" @click="getEpisodes(anime.url)">
-                    <span class="text-lg text-primary font-medium" v-text="anime.title"></span>
-                </div>
-            </div>
-        </div>
-
-        <div v-if="episodes.length" ref="episodesSection" class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode.url)">
-                    <span class="text-primary" v-text="episode.title"></span>
-                </div>
-            </div>
-        </div>
-
-        <div v-if="videoUrl" ref="streamingSection" class="mb-6 card p-6">
-            <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
-            <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
-            <div class="flex flex-col space-y-2">
-                <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
-            </div>
-        </div>
-
-        <div v-if="streamingUrl && !videoUrl" ref="streamingSection" class="mb-6 card p-6">
-            <h2 class="text-2xl font-semibold mb-3 text-primary">Link streaming:</h2>
-            <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
-            <div class="flex flex-col space-y-2">
-                <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
-            </div>
+        <div v-if="videoUrl" class="video-player">
+            <video controls :src="videoUrl" style="width: 100%; height: 100%;"></video>
         </div>
     </div>
 
@@ -131,77 +187,71 @@
             data: {
                 query: '',
                 animeResults: [],
-                episodes: [],
+                suggestions: [],
                 videoUrl: '',
-                streamingUrl: '',
-                suggestions: []
+                loading: false,
+                error: null
             },
             methods: {
                 async searchAnime() {
-                    const response = await axios.post('/search', new URLSearchParams({ query: this.query }));
-                    this.animeResults = response.data;
-                    this.episodes = [];
-                    this.videoUrl = '';
-                    this.streamingUrl = '';
+                    this.loading = true;
+                    this.error = null;
                     this.suggestions = [];
-                },
-                async getEpisodes(animeUrl) {
-                    const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
-                    this.episodes = response.data;
-                    this.videoUrl = '';
-                    this.streamingUrl = '';
-                    this.$nextTick(() => {
-                        this.scrollTo('episodesSection');
-                    });
-                },
-                async getStreamingUrl(episodeUrl) {
-                    const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
-                    if (response.data.video_url) {
-                        this.videoUrl = response.data.video_url;
-                        this.streamingUrl = response.data.streaming_url;
-                    } else if (response.data.streaming_url) {
-                        this.streamingUrl = response.data.streaming_url;
-                        this.videoUrl = '';
-                    } else {
-                        alert('Errore: ' + response.data.error);
+                    try {
+                        const response = await axios.post('/search', { query: this.query });
+                        this.animeResults = response.data;
+                    } catch (error) {
+                        console.error('Error searching anime:', error);
+                        this.error = 'Si è verificato un errore durante la ricerca. Riprova più tardi.';
+                    } finally {
+                        this.loading = false;
                     }
-                    this.$nextTick(() => {
-                        this.scrollTo('streamingSection');
-                    });
-                },
-                scrollTo(refName) {
-                    const element = this.$refs[refName];
-                    if (element) {
-                        element.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start',
-                            inline: 'nearest'
-                        });
-                    }
-                },
-                openInVlc() {
-                    const url = this.videoUrl || this.streamingUrl;
-                    window.open('vlc://' + url);
                 },
                 async getSuggestions() {
-                    if (this.query.length > 2) {
-                        const response = await axios.post('/search_suggestions', new URLSearchParams({ query: this.query }));
-                        this.suggestions = response.data;
-                    } else {
+                    if (this.query.length < 3) {
                         this.suggestions = [];
+                        return;
+                    }
+                    try {
+                        const response = await axios.post('/search_suggestions', { query: this.query });
+                        this.suggestions = response.data;
+                    } catch (error) {
+                        console.error('Error getting suggestions:', error);
                     }
                 },
                 selectSuggestion(suggestion) {
                     this.query = suggestion.title;
                     this.searchAnime();
-                    this.suggestions = [];
                 },
-                copyToClipboard(text) {
-                    navigator.clipboard.writeText(text).then(() => {
-                        alert('Link copiato negli appunti!');
-                    }, (err) => {
-                        console.error('Errore nel copiare il testo: ', err);
-                    });
+                async getEpisodes(animeUrl) {
+                    this.loading = true;
+                    this.error = null;
+                    try {
+                        const response = await axios.post('/episodes', { anime_url: animeUrl });
+                        const index = this.animeResults.findIndex(anime => anime.url === animeUrl);
+                        if (index !== -1) {
+                            this.animeResults[index].episodes = response.data;
+                            this.$forceUpdate();
+                        }
+                    } catch (error) {
+                        console.error('Error getting episodes:', error);
+                        this.error = 'Si è verificato un errore durante il recupero degli episodi. Riprova più tardi.';
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                async getStreamingUrl(episodeUrl) {
+                    this.loading = true;
+                    this.error = null;
+                    try {
+                        const response = await axios.post('/stream', { episode_url: episodeUrl });
+                        this.videoUrl = response.data.video_url;
+                    } catch (error) {
+                        console.error('Error getting streaming URL:', error);
+                        this.error = 'Si è verificato un errore durante il recupero dello streaming. Riprova più tardi.';
+                    } finally {
+                        this.loading = false;
+                    }
                 }
             }
         });
