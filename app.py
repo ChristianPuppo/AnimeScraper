@@ -8,13 +8,16 @@ app = Flask(__name__)
 
 BASE_URL = "https://www.animesaturn.mx"
 
+
 def search_anime(query):
     search_url = urljoin(BASE_URL, f"/animelist?search={query}")
     response = requests.get(search_url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
     results = soup.find_all('a', class_='badge-archivio')
-    return [{"title": result.text.strip(), "url": urljoin(BASE_URL, result['href'])} for result in results]
+    return [{"title": result.text.strip(), "url": urljoin(BASE_URL, result['href']),
+             "html": str(result.find_parent('div', class_='item-archivio'))} for result in results]
+
 
 def get_episodes(anime_url):
     response = requests.get(anime_url)
@@ -24,20 +27,47 @@ def get_episodes(anime_url):
     episode_data = []
 
     for ep in episodes:
-        thumbnail_container = ep.find_previous('div', class_='container shadow rounded bg-dark-as-box mb-3 p-3 w-100 d-flex justify-content-center')
-        thumbnail_url = None
-        if thumbnail_container:
-            thumbnail_img = thumbnail_container.find('img', class_='img-fluid cover-anime rounded')
-            if thumbnail_img and 'src' in thumbnail_img.attrs:
-                thumbnail_url = thumbnail_img['src']
-
+        episode_number = re.search(r'Episodio (\d+)', ep.text)
         episode_data.append({
             "title": ep.text.strip(),
             "url": urljoin(BASE_URL, ep['href']),
-            "thumbnail": thumbnail_url
+            "number": int(episode_number.group(1)) if episode_number else None
         })
 
     return episode_data
+
+
+def get_anime_details(anime_url):
+    response = requests.get(anime_url)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    details = {}
+
+    # Estrai il titolo
+    title_elem = soup.find('h1', class_='title-archivio')
+    details['title'] = title_elem.text.strip() if title_elem else None
+
+    # Estrai la valutazione
+    rating_elem = soup.find('b', string='Voto:')
+    if rating_elem:
+        rating_text = rating_elem.find_next(string=True)
+        rating_match = re.search(r'([\d.]+)/5', rating_text)
+        details['rating'] = float(rating_match.group(1)) if rating_match else None
+
+    # Estrai la thumbnail
+    thumbnail_elem = soup.find('img', class_='rounded copertina-archivio')
+    details['thumbnail'] = thumbnail_elem['src'] if thumbnail_elem else None
+
+    # Estrai il numero di episodi
+    episodes_elem = soup.find('b', string='Episodi:')
+    if episodes_elem:
+        episodes_text = episodes_elem.find_next(string=True)
+        episodes_match = re.search(r'\d+', episodes_text)
+        details['episodes'] = int(episodes_match.group()) if episodes_match else None
+
+    return details
+
 
 def get_streaming_url(episode_url):
     response = requests.get(episode_url)
@@ -47,6 +77,7 @@ def get_streaming_url(episode_url):
     if streaming_link:
         return urljoin(BASE_URL, streaming_link['href'])
     return None
+
 
 def extract_video_url(url):
     try:
@@ -71,82 +102,47 @@ def extract_video_url(url):
             if match:
                 return match.group(0)
 
-        video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
-        for script in soup.find_all('script'):
-            match = re.search(video_pattern, str(script))
-            if match:
-                return match.group(0)
-
-        match = re.search(video_pattern, response.text)
-        if match:
-            return match.group(0)
-
     except requests.RequestException as e:
         print(f"Errore nell'estrazione dell'URL video: {e}")
 
     return None
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
+
 @app.route('/search', methods=['POST'])
 def search():
-    query = request.form['query']
+    query = request.json['query']
     results = search_anime(query)
     return jsonify(results)
 
-@app.route('/search_suggestions', methods=['POST'])
-def search_suggestions():
-    query = request.form['query']
-    results = search_anime(query)[:10]  # Limita a 10 suggerimenti
-    return jsonify(results)
 
 @app.route('/episodes', methods=['POST'])
 def episodes():
-    anime_url = request.form['anime_url']
+    anime_url = request.json['anime_url']
     episodes = get_episodes(anime_url)
     return jsonify(episodes)
 
+
+@app.route('/anime_details', methods=['POST'])
+def anime_details():
+    anime_url = request.json['anime_url']
+    details = get_anime_details(anime_url)
+    return jsonify(details)
+
+
 @app.route('/stream', methods=['POST'])
 def stream():
-    episode_url = request.form['episode_url']
+    episode_url = request.json['episode_url']
     streaming_url = get_streaming_url(episode_url)
     if streaming_url:
         video_url = extract_video_url(streaming_url)
         return jsonify({"video_url": video_url, "streaming_url": streaming_url})
     return jsonify({"error": "Impossibile trovare il link dello streaming."})
 
-
-def get_all_episode_urls(anime_url):
-    episodes = get_episodes(anime_url)
-    return [episode['url'] for episode in episodes]
-
-
-def extract_all_video_urls(episode_urls):
-    video_urls = []
-    for url in episode_urls:
-        streaming_url = get_streaming_url(url)
-        if streaming_url:
-            video_url = extract_video_url(streaming_url)
-            if video_url and video_url.endswith('.mp4'):
-                video_urls.append(video_url)
-    return video_urls
-
-
-@app.route('/download_season', methods=['POST'])
-def download_season():
-    anime_url = request.form['anime_url']
-    episode_urls = get_all_episode_urls(anime_url)
-    video_urls = extract_all_video_urls(episode_urls)
-
-    links_content = '\n'.join(video_urls)
-
-    return Response(
-        links_content,
-        mimetype='text/plain',
-        headers={'Content-Disposition': 'attachment; filename=anime.links'}
-    )
 
 if __name__ == '__main__':
     app.run(debug=True)
