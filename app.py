@@ -106,15 +106,19 @@ def extract_video_url(url):
 
 def get_series_metadata(title):
     try:
+        print(f"DEBUG: Cercando serie su TMDb: {title}")
         search = tv.search(title)
         if search:
             series = search[0]
+            print(f"DEBUG: Serie trovata su TMDb: {series.name}")
             details = tv.details(series.id)
             seasons = details.seasons
             episodes = []
             for s in seasons:
+                print(f"DEBUG: Recuperando dettagli per la stagione {s.season_number}")
                 season_details = season.details(series.id, s.season_number)
                 episodes.extend(season_details.episodes)
+            print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
             return {
                 'id': series.id,
                 'title': details.name,
@@ -125,8 +129,10 @@ def get_series_metadata(title):
                 'poster_path': f"https://image.tmdb.org/t/p/w500{details.poster_path}" if details.poster_path else None,
                 'episodes': episodes
             }
+        else:
+            print(f"DEBUG: Nessuna serie trovata su TMDb per: {title}")
     except Exception as e:
-        print(f"Errore nel recupero dei metadata da TMDb: {e}")
+        print(f"DEBUG: Errore nel recupero dei metadata da TMDb: {e}")
     return None
 
 @app.route('/')
@@ -173,9 +179,11 @@ def save_playlist():
     
     for series in playlist:
         series_title = series['title']
+        print(f"DEBUG: Cercando metadata per la serie: {series_title}")
         metadata = get_series_metadata(series_title)
         
         if metadata:
+            print(f"DEBUG: Metadata trovati per {series_title}")
             italian_title = metadata['title']
             original_title = metadata['original_title']
             description = metadata.get('overview', '').replace('\n', ' ')
@@ -192,7 +200,9 @@ def save_playlist():
                 playlist_title = f"Playlist {italian_title}"
 
             tmdb_episodes = {ep.episode_number: ep.name for ep in metadata['episodes']}
+            print(f"DEBUG: Episodi trovati su TMDb: {tmdb_episodes}")
         else:
+            print(f"DEBUG: Nessun metadata trovato per {series_title}")
             m3u_content += f"\n#EXTINF:-1 group-title=\"{series_title}\",{series_title}\n"
             m3u_content += f"#EXTGRP:{series_title}\n"
             tmdb_episodes = {}
@@ -207,6 +217,7 @@ def save_playlist():
             else:
                 episode_title = f"Episodio {i}"
             
+            print(f"DEBUG: Titolo episodio {i}: {episode_title}")
             episode_title = f"{episode_title} - {anime_name}"
             
             m3u_content += f"#EXTINF:-1,{episode_title}\n"
@@ -214,6 +225,7 @@ def save_playlist():
         
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
     
+    print(f"DEBUG: Contenuto M3U generato:\n{m3u_content}")
     return Response(
         m3u_content,
         mimetype='text/plain',
