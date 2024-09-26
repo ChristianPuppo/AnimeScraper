@@ -6,6 +6,8 @@ import os
 from urllib.parse import urljoin
 from colorama import init, Fore, Style
 import webbrowser
+import aiohttp
+import asyncio
 
 init(autoreset=True)
 
@@ -45,39 +47,41 @@ def get_episodes(anime_url):
     return episode_data
 
 
-def get_streaming_url(episode_url):
-    response = requests.get(episode_url)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, 'html.parser')
+async def fetch(session, url):
+    async with session.get(url) as response:
+        return await response.text()
+
+
+async def get_streaming_url_async(session, episode_url):
+    html = await fetch(session, episode_url)
+    soup = BeautifulSoup(html, 'html.parser')
     streaming_link = soup.find('a', href=lambda href: href and 'watch?file=' in href)
     if streaming_link:
         return urljoin(BASE_URL, streaming_link['href'])
     return None
 
 
-def extract_video_url(url):
+async def extract_video_url_async(session, url):
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
+        html = await fetch(session, url)
+        soup = BeautifulSoup(html, 'html.parser')
 
         # Cerca un iframe nella pagina
         iframe = soup.find('iframe')
-        if (iframe and 'src' in iframe.attrs):
+        if iframe and 'src' in iframe.attrs:
             iframe_src = iframe['src']
-            iframe_response = requests.get(iframe_src)
-            iframe_response.raise_for_status()
+            iframe_html = await fetch(session, iframe_src)
+            iframe_soup = BeautifulSoup(iframe_html, 'html.parser')
             video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
 
             # Cerca negli elementi script del iframe
-            iframe_soup = BeautifulSoup(iframe_response.text, 'html.parser')
             for script in iframe_soup.find_all('script'):
                 match = re.search(video_pattern, str(script))
                 if match:
                     return match.group(0)
 
             # Cerca direttamente nel testo del iframe
-            match = re.search(video_pattern, iframe_response.text)
+            match = re.search(video_pattern, iframe_html)
             if match:
                 return match.group(0)
 
@@ -88,14 +92,30 @@ def extract_video_url(url):
             if match:
                 return match.group(0)
 
-        match = re.search(video_pattern, response.text)
+        match = re.search(video_pattern, html)
         if match:
             return match.group(0)
 
-    except requests.RequestException as e:
+    except Exception as e:
         print(f"{Fore.RED}Errore nell'estrazione dell'URL video: {e}")
 
     return None
+
+
+async def get_video_urls(episode_urls):
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for episode_url in episode_urls:
+            tasks.append(get_streaming_url_async(session, episode_url))
+        streaming_urls = await asyncio.gather(*tasks)
+
+        tasks = []
+        for streaming_url in streaming_urls:
+            if streaming_url:
+                tasks.append(extract_video_url_async(session, streaming_url))
+        video_urls = await asyncio.gather(*tasks)
+
+    return video_urls
 
 
 def play_video(video_url):
@@ -141,32 +161,22 @@ def main():
     selected_anime, anime_url = results[choice]
 
     episodes = get_episodes(anime_url)
+    episode_urls = [ep['url'] for ep in episodes]
 
     if len(episodes) > 1:
         print(f"{Fore.GREEN}Episodi disponibili per {selected_anime}:")
-        print_menu([ep_title for ep_title, _ in episodes])
+        print_menu([ep['title'] for ep in episodes])
         ep_choice = get_user_choice("Seleziona il numero dell'episodio desiderato:", episodes)
-        _, episode_url = episodes[ep_choice]
-    else:
-        print(f"{Fore.BLUE}Film trovato. Procedendo con la riproduzione.")
-        _, episode_url = episodes[0]
+        episode_urls = [episode_urls[ep_choice]]
 
-    streaming_url = get_streaming_url(episode_url)
+    video_urls = asyncio.run(get_video_urls(episode_urls))
 
-    if not streaming_url:
-        print(f"{Fore.RED}Impossibile trovare il link dello streaming.")
-        return
-
-    video_url = extract_video_url(streaming_url)
-
-    if video_url:
-        print(f"{Fore.GREEN}URL del video trovato: {video_url}")
-        play_video(video_url)
-    else:
-        print(f"{Fore.YELLOW}Nessun URL video trovato.")
-        print(f"{Fore.YELLOW}Link streaming: {streaming_url}")
-        if input(f"{Fore.YELLOW}Vuoi aprire questo link in VLC? (s/n): ").lower() == 's':
-            play_video(streaming_url)
+    for video_url in video_urls:
+        if video_url:
+            print(f"{Fore.GREEN}URL del video trovato: {video_url}")
+            play_video(video_url)
+        else:
+            print(f"{Fore.YELLOW}Nessun URL video trovato.")
 
     print(
         f"{Fore.CYAN}Se VLC non si è avviato automaticamente, copia il link e usalo in VLC.")
