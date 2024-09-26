@@ -19,39 +19,47 @@ def index():
     return render_template('index.html')
 
 @app.route('/search', methods=['POST'])
-@run_async
-async def search():
-    query = request.form['query']
-    results = await search_anime(query)
-    return jsonify(results)
+def search():
+    @run_async
+    async def async_search():
+        query = request.form['query']
+        results = await search_anime(query)
+        return jsonify(results)
+    return async_search()
 
 @app.route('/search_suggestions', methods=['POST'])
-@run_async
-async def search_suggestions():
-    query = request.form['query']
-    results = await search_anime(query)
-    return jsonify(results[:10])  # Limita a 10 suggerimenti
+def search_suggestions():
+    @run_async
+    async def async_search_suggestions():
+        query = request.form['query']
+        results = await search_anime(query)
+        return jsonify(results[:10])  # Limita a 10 suggerimenti
+    return async_search_suggestions()
 
 @app.route('/episodes', methods=['POST'])
-@run_async
-async def episodes():
-    anime_url = request.form['anime_url']
-    print(f"Richiesta per gli episodi di: {anime_url}")
-    episodes = await get_episodes(anime_url)
-    print(f"Episodi trovati: {episodes}")
-    return jsonify(episodes)
+def episodes():
+    @run_async
+    async def async_episodes():
+        anime_url = request.form['anime_url']
+        print(f"Richiesta per gli episodi di: {anime_url}")
+        episodes = await get_episodes(anime_url)
+        print(f"Episodi trovati: {episodes}")
+        return jsonify(episodes)
+    return async_episodes()
 
 @app.route('/stream', methods=['POST'])
-@run_async
-async def stream():
-    episode_url = request.form['episode_url']
-    print(f"Richiesta per lo streaming dell'episodio: {episode_url}")
-    video_urls = await get_video_urls([episode_url])
-    if video_urls and video_urls[0]:
-        print(f"URL video estratto: {video_urls[0]}")
-        return jsonify({"video_url": video_urls[0]})
-    print("Impossibile trovare il link dello streaming.")
-    return jsonify({"error": "Impossibile trovare il link dello streaming."})
+def stream():
+    @run_async
+    async def async_stream():
+        episode_url = request.form['episode_url']
+        print(f"Richiesta per lo streaming dell'episodio: {episode_url}")
+        video_urls = await get_video_urls([episode_url])
+        if video_urls and video_urls[0]:
+            print(f"URL video estratto: {video_urls[0]}")
+            return jsonify({"video_url": video_urls[0]})
+        print("Impossibile trovare il link dello streaming.")
+        return jsonify({"error": "Impossibile trovare il link dello streaming."})
+    return async_stream()
 
 @app.route('/save_playlist', methods=['POST'])
 def save_playlist():
