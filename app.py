@@ -7,6 +7,7 @@ from collections import defaultdict
 import os
 from dotenv import load_dotenv
 from tmdbv3api import TMDb, TV, Season
+from fuzzywuzzy import fuzz
 
 app = Flask(__name__)
 
@@ -107,33 +108,46 @@ def extract_video_url(url):
 def get_series_metadata(title):
     try:
         print(f"DEBUG: Cercando serie su TMDb: {title}")
-        # Rimuovi "(ITA)" dal titolo per la ricerca
-        search_title = re.sub(r'\s*\(ITA\)\s*', '', title).strip()
+        # Rimuovi "(ITA)" e altri suffissi comuni dal titolo per la ricerca
+        search_title = re.sub(r'\s*(\(ITA\)|\(SUB ITA\)|\(TV\)|\(OAV\)|\(OVA\))\s*', '', title).strip()
         print(f"DEBUG: Titolo di ricerca modificato: {search_title}")
-        search = tv.search(search_title)
-        if search:
-            series = search[0]
-            print(f"DEBUG: Serie trovata su TMDb: {series.name}")
-            details = tv.details(series.id)
-            seasons = details.seasons
-            episodes = []
-            for s in seasons:
-                print(f"DEBUG: Recuperando dettagli per la stagione {s.season_number}")
-                season_details = season.details(series.id, s.season_number)
-                episodes.extend(season_details.episodes)
-            print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
-            return {
-                'id': series.id,
-                'title': details.name,
-                'original_title': details.original_name,
-                'overview': details.overview,
-                'first_air_date': details.first_air_date,
-                'genres': [genre['name'] for genre in details.genres],
-                'poster_path': f"https://image.tmdb.org/t/p/w500{details.poster_path}" if details.poster_path else None,
-                'episodes': episodes
-            }
-        else:
-            print(f"DEBUG: Nessuna serie trovata su TMDb per: {title}")
+        
+        # Lista di possibili varianti del titolo
+        title_variants = [
+            search_title,
+            re.sub(r'[:\-–].*$', '', search_title).strip(),  # Prendi solo la prima parte del titolo
+            ' '.join(search_title.split()[:3]),  # Prendi solo le prime tre parole
+            ' '.join(search_title.split()[:2]),  # Prendi solo le prime due parole
+        ]
+        
+        for variant in title_variants:
+            print(f"DEBUG: Provando variante: {variant}")
+            search = tv.search(variant)
+            if search:
+                # Trova la corrispondenza migliore usando fuzzy matching
+                best_match = max(search, key=lambda x: fuzz.ratio(x.name.lower(), search_title.lower()))
+                if fuzz.ratio(best_match.name.lower(), search_title.lower()) > 60:  # Soglia di somiglianza
+                    print(f"DEBUG: Serie trovata su TMDb: {best_match.name}")
+                    details = tv.details(best_match.id)
+                    seasons = details.seasons
+                    episodes = []
+                    for s in seasons:
+                        print(f"DEBUG: Recuperando dettagli per la stagione {s.season_number}")
+                        season_details = season.details(best_match.id, s.season_number)
+                        episodes.extend(season_details.episodes)
+                    print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
+                    return {
+                        'id': best_match.id,
+                        'title': details.name,
+                        'original_title': details.original_name,
+                        'overview': details.overview,
+                        'first_air_date': details.first_air_date,
+                        'genres': [genre['name'] for genre in details.genres],
+                        'poster_path': f"https://image.tmdb.org/t/p/w500{details.poster_path}" if details.poster_path else None,
+                        'episodes': episodes
+                    }
+        
+        print(f"DEBUG: Nessuna serie trovata su TMDb per: {search_title}")
     except Exception as e:
         print(f"DEBUG: Errore nel recupero dei metadata da TMDb: {e}")
     return None
