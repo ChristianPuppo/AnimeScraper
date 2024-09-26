@@ -88,6 +88,23 @@
             border-radius: 10px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #007AFF;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 <body>
@@ -132,7 +149,10 @@
                 <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
                 <div class="flex flex-col space-y-2">
                     <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                    <button @click="addToPlaylist" class="btn btn-primary text-white p-3">Aggiungilo alla Lista</button>
+                    <button @click="addToPlaylist" class="btn btn-primary text-white p-3 flex items-center justify-center">
+                        <span v-if="!loading" class="mr-2">Aggiungilo alla Lista</span>
+                        <div v-if="loading" class="loading-spinner"></div>
+                    </button>
                 </div>
             </div>
 
@@ -141,7 +161,10 @@
                 <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
                 <div class="flex flex-col space-y-2">
                     <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                    <button @click="addToPlaylist" class="btn btn-primary text-white p-3">Aggiungilo alla Lista</button>
+                    <button @click="addToPlaylist" class="btn btn-primary text-white p-3 flex items-center justify-center">
+                        <span v-if="!loading" class="mr-2">Aggiungilo alla Lista</span>
+                        <div v-if="loading" class="loading-spinner"></div>
+                    </button>
                 </div>
             </div>
 
@@ -167,7 +190,8 @@
                 videoUrl: '',
                 streamingUrl: '',
                 suggestions: [],
-                playlist: []
+                playlist: [],
+                loading: false
             },
             methods: {
                 async searchAnime() {
@@ -233,12 +257,19 @@
                     });
                 },
                 async addToPlaylist() {
-                    const response = await axios.post('/episodes', new URLSearchParams({ anime_url: this.animeResults.find(anime => anime.url === this.episodes[0].url).url }));
-                    const episodes = response.data;
-                    const title = this.animeResults.find(anime => anime.url === this.episodes[0].url).title;
-                    episodes.forEach(ep => {
-                        this.playlist.push({ title: `${title} - ${ep.title}`, url: ep.url });
-                    });
+                    this.loading = true;
+                    try {
+                        const response = await axios.post('/episodes', new URLSearchParams({ anime_url: this.animeResults.find(anime => anime.url === this.episodes[0].url).url }));
+                        const episodes = response.data;
+                        const title = this.animeResults.find(anime => anime.url === this.episodes[0].url).title;
+                        episodes.forEach(ep => {
+                            this.playlist.push({ title: `${title} - ${ep.title}`, url: ep.url });
+                        });
+                    } catch (error) {
+                        console.error('Errore nell\'aggiungere alla lista:', error);
+                    } finally {
+                        this.loading = false;
+                    }
                 },
                 async savePlaylist() {
                     const response = await axios.post('/save_playlist', { playlist: this.playlist });
