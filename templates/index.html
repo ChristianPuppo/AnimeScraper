@@ -105,6 +105,25 @@
                 transform: rotate(360deg);
             }
         }
+        .full-width-btn {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 48px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background-color: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-bar-inner {
+            height: 100%;
+            background-color: #007AFF;
+            transition: width 0.3s ease;
+        }
     </style>
 </head>
 <body>
@@ -142,9 +161,15 @@
                         <span class="text-primary" v-text="episode.title"></span>
                     </div>
                 </div>
-                <button @click="addSeriesToPlaylist" class="btn btn-primary text-white p-3 flex items-center justify-center mt-4">
-                    <span v-if="!loading" class="mr-2">Aggiungi Serie alla Lista</span>
-                    <div v-if="loading" class="loading-spinner"></div>
+                <button @click="addSeriesToPlaylist" class="btn btn-primary text-white p-3 full-width-btn mt-4">
+                    <template v-if="!loading && progress === 0">
+                        <span>Aggiungi Serie alla Lista</span>
+                    </template>
+                    <template v-else>
+                        <div class="progress-bar">
+                            <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
+                        </div>
+                    </template>
                 </button>
             </div>
 
@@ -171,7 +196,7 @@
                         <span v-text="item.title"></span>
                     </li>
                 </ul>
-                <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4">Scarica la lista</button>
+                <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4 full-width-btn">Scarica la lista</button>
             </div>
         </div>
     </div>
@@ -187,7 +212,8 @@
                 streamingUrl: '',
                 suggestions: [],
                 playlist: [],
-                loading: false
+                loading: false,
+                progress: 0
             },
             methods: {
                 async searchAnime() {
@@ -255,30 +281,36 @@
                 async addSeriesToPlaylist() {
                     console.log("Aggiungi Serie alla Lista cliccato");
                     this.loading = true;
+                    this.progress = 0;
                     try {
-                        const animeUrl = this.animeResults[0].url; // Prendi l'URL del primo risultato
+                        const animeUrl = this.animeResults[0].url;
                         console.log("Anime URL:", animeUrl);
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
                         console.log("Risposta dal server:", response.data);
                         const episodes = response.data;
 
-                        // Estrai gli URL diretti dei video
-                        for (let episode of episodes) {
+                        const title = this.animeResults[0].title;
+                        const processedEpisodes = [];
+
+                        for (let i = 0; i < episodes.length; i++) {
+                            const episode = episodes[i];
                             const streamResponse = await axios.post('/stream', new URLSearchParams({ episode_url: episode.url }));
                             if (streamResponse.data.video_url) {
                                 episode.url = streamResponse.data.video_url;
                             } else if (streamResponse.data.streaming_url) {
                                 episode.url = streamResponse.data.streaming_url;
                             }
+                            processedEpisodes.push(episode);
+                            this.progress = Math.round((i + 1) / episodes.length * 100);
                         }
 
-                        const title = this.animeResults[0].title; // Prendi il titolo del primo risultato
-                        this.playlist.push({ title: title, episodes: episodes });
+                        this.playlist.push({ title: title, episodes: processedEpisodes });
                         console.log("Playlist aggiornata:", this.playlist);
                     } catch (error) {
                         console.error('Errore nell\'aggiungere alla lista:', error);
                     } finally {
                         this.loading = false;
+                        this.progress = 0;
                     }
                 },
                 async downloadPlaylist() {
