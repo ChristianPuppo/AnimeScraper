@@ -261,6 +261,17 @@
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
                         console.log("Risposta dal server:", response.data);
                         const episodes = response.data;
+
+                        // Estrai gli URL diretti dei video
+                        for (let episode of episodes) {
+                            const streamResponse = await axios.post('/stream', new URLSearchParams({ episode_url: episode.url }));
+                            if (streamResponse.data.video_url) {
+                                episode.url = streamResponse.data.video_url;
+                            } else if (streamResponse.data.streaming_url) {
+                                episode.url = streamResponse.data.streaming_url;
+                            }
+                        }
+
                         const title = this.animeResults[0].title; // Prendi il titolo del primo risultato
                         this.playlist.push({ title: title, episodes: episodes });
                         console.log("Playlist aggiornata:", this.playlist);

@@ -63,7 +63,7 @@ def extract_video_url(url):
 
         # Cerca un iframe nella pagina
         iframe = soup.find('iframe')
-        if iframe and 'src' in iframe.attrs:
+        if (iframe and 'src' in iframe.attrs):
             iframe_src = iframe['src']
             iframe_response = requests.get(iframe_src)
             iframe_response.raise_for_status()
