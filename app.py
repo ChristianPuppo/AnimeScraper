@@ -4,10 +4,9 @@ from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
 from collections import defaultdict
-from gql import gql, Client
-from gql.transport.requests import RequestsHTTPTransport
 import os
 from dotenv import load_dotenv
+from tmdbv3api import TMDb, TV, Season
 
 app = Flask(__name__)
 
@@ -16,15 +15,12 @@ BASE_URL = "https://www.animesaturn.mx"
 # Carica le variabili d'ambiente dal file .env
 load_dotenv()
 
-# Ottieni il token di accesso AniList dalle variabili d'ambiente
-ANILIST_ACCESS_TOKEN = os.getenv('ANILIST_ACCESS_TOKEN')  # Nome della variabile d'ambiente
-
-# Configurazione del client GraphQL per AniList con autenticazione
-anilist_transport = RequestsHTTPTransport(
-    url='https://graphql.anilist.co',
-    headers={'Authorization': f'Bearer {ANILIST_ACCESS_TOKEN}'}
-)
-anilist_client = Client(transport=anilist_transport, fetch_schema_from_transport=True)
+# Configurazione TMDb
+tmdb = TMDb()
+tmdb.api_key = os.getenv('TMDB_API_KEY')
+tmdb.language = 'it'
+tv = TV()
+season = Season()
 
 def search_anime(query):
     search_url = urljoin(BASE_URL, f"/animelist?search={query}")
@@ -49,7 +45,6 @@ def get_episodes(anime_url):
             if thumbnail_img and 'src' in thumbnail_img.attrs:
                 thumbnail_url = thumbnail_img['src']
 
-        # Cerchiamo il titolo italiano dell'episodio
         italian_title = ep.get('title', '').strip()
         if not italian_title:
             italian_title = ep.text.strip()
@@ -109,38 +104,30 @@ def extract_video_url(url):
 
     return None
 
-def get_anilist_metadata(title):
-    query = gql('''
-    query ($search: String) {
-        Media (search: $search, type: ANIME) {
-            id
-            title {
-                romaji
-                english
-                native
-                italian
-            }
-            description
-            episodes
-            coverImage {
-                large
-            }
-            startDate {
-                year
-                month
-                day
-            }
-            genres
-        }
-    }
-    ''')
-    
+def get_series_metadata(title):
     try:
-        result = anilist_client.execute(query, variable_values={'search': title})
-        return result['Media']
+        search = tv.search(title)
+        if search:
+            series = search[0]
+            details = tv.details(series.id)
+            seasons = details.seasons
+            episodes = []
+            for s in seasons:
+                season_details = season.details(series.id, s.season_number)
+                episodes.extend(season_details.episodes)
+            return {
+                'id': series.id,
+                'title': details.name,
+                'original_title': details.original_name,
+                'overview': details.overview,
+                'first_air_date': details.first_air_date,
+                'genres': [genre['name'] for genre in details.genres],
+                'poster_path': f"https://image.tmdb.org/t/p/w500{details.poster_path}" if details.poster_path else None,
+                'episodes': episodes
+            }
     except Exception as e:
-        print(f"Errore nel recupero dei metadata da AniList: {e}")
-        return None
+        print(f"Errore nel recupero dei metadata da TMDb: {e}")
+    return None
 
 @app.route('/')
 def index():
@@ -186,39 +173,41 @@ def save_playlist():
     
     for series in playlist:
         series_title = series['title']
-        metadata = get_anilist_metadata(series_title)
+        metadata = get_series_metadata(series_title)
         
         if metadata:
-            # Priorità al titolo italiano, altrimenti usa quello originale
-            italian_title = metadata['title'].get('italian') or series_title
-            english_title = metadata['title']['english'] or metadata['title']['romaji']
-            description = metadata.get('description', '').replace('\n', ' ')
-            cover_image = metadata['coverImage']['large']
-            year = metadata['startDate']['year']
-            genres = ', '.join(metadata['genres'])
+            italian_title = metadata['title']
+            original_title = metadata['original_title']
+            description = metadata.get('overview', '').replace('\n', ' ')
+            cover_image = metadata.get('poster_path', '')
+            year = metadata['first_air_date'][:4] if metadata.get('first_air_date') else ''
+            genres = ', '.join(metadata.get('genres', []))
             
-            # Usa il titolo italiano per il gruppo
-            m3u_content += f"\n#EXTINF:-1 group-title=\"{italian_title}\" tvg-logo=\"{cover_image}\",{english_title} ({year})\n"
+            m3u_content += f"\n#EXTINF:-1 group-title=\"{italian_title}\" tvg-logo=\"{cover_image}\",{original_title} ({year})\n"
             m3u_content += f"#EXTGRP:{italian_title}\n"
             m3u_content += f"#EXTDESC:{description}\n"
             m3u_content += f"#EXTGENRE:{genres}\n"
             
-            # Aggiorna il titolo della playlist con il primo titolo italiano trovato
             if playlist_title == "Playlist Anime":
                 playlist_title = f"Playlist {italian_title}"
+
+            tmdb_episodes = {ep.episode_number: ep.name for ep in metadata['episodes']}
         else:
             m3u_content += f"\n#EXTINF:-1 group-title=\"{series_title}\",{series_title}\n"
             m3u_content += f"#EXTGRP:{series_title}\n"
+            tmdb_episodes = {}
         
         for i, episode in enumerate(series['episodes'], 1):
-            # Estrai il nome del file dall'URL
             file_name = episode['url'].split('/')[-1]
-            # Rimuovi l'estensione del file e sostituisci underscore con spazi
-            episode_title = file_name.rsplit('.', 1)[0].replace('_', ' ')
-            # Rimuovi prefissi comuni come "Ep" o numeri episodio
-            episode_title = re.sub(r'^.*?(\d+)(?:_|\s)', r'Episodio \1: ', episode_title)
-            # Rimuovi suffissi come "ITA"
-            episode_title = re.sub(r'_?ITA$', '', episode_title)
+            anime_name = episode['url'].split('/')[-2]
+            episode_number = re.search(r'Ep_(\d+)', file_name)
+            if episode_number:
+                episode_number = int(episode_number.group(1))
+                episode_title = tmdb_episodes.get(episode_number, f"Episodio {episode_number}")
+            else:
+                episode_title = f"Episodio {i}"
+            
+            episode_title = f"{episode_title} - {anime_name}"
             
             m3u_content += f"#EXTINF:-1,{episode_title}\n"
             m3u_content += f"{episode['url']}\n"

@@ -25,3 +25,4 @@ asyncio==3.4.3
 gql==3.4.0
 python-dotenv==0.21.0
 requests_toolbelt==1.0.0
+tmdbv3api==1.7.7
