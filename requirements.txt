@@ -22,3 +22,4 @@ Werkzeug==2.2.3
 zipp==3.20.0
 aiohttp==3.9.0b0
 asyncio==3.4.3
+gql==3.4.0

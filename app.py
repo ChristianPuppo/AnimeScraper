@@ -4,10 +4,16 @@ from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
 from collections import defaultdict
+from gql import gql, Client
+from gql.transport.requests import RequestsHTTPTransport
 
 app = Flask(__name__)
 
 BASE_URL = "https://www.animesaturn.mx"
+
+# Configurazione del client GraphQL per AniList
+anilist_transport = RequestsHTTPTransport(url='https://graphql.anilist.co')
+anilist_client = Client(transport=anilist_transport, fetch_schema_from_transport=True)
 
 def search_anime(query):
     search_url = urljoin(BASE_URL, f"/animelist?search={query}")
@@ -32,8 +38,13 @@ def get_episodes(anime_url):
             if thumbnail_img and 'src' in thumbnail_img.attrs:
                 thumbnail_url = thumbnail_img['src']
 
+        # Cerchiamo il titolo italiano dell'episodio
+        italian_title = ep.get('title', '').strip()
+        if not italian_title:
+            italian_title = ep.text.strip()
+
         episode_data.append({
-            "title": ep.text.strip(),
+            "title": italian_title,
             "url": urljoin(BASE_URL, ep['href']),
             "thumbnail": thumbnail_url
         })
@@ -87,6 +98,37 @@ def extract_video_url(url):
 
     return None
 
+def get_anilist_metadata(title):
+    query = gql('''
+    query ($search: String) {
+        Media (search: $search, type: ANIME) {
+            id
+            title {
+                romaji
+                english
+            }
+            description
+            episodes
+            coverImage {
+                large
+            }
+            startDate {
+                year
+                month
+                day
+            }
+            genres
+        }
+    }
+    ''')
+    
+    try:
+        result = anilist_client.execute(query, variable_values={'search': title})
+        return result['Media']
+    except Exception as e:
+        print(f"Errore nel recupero dei metadata da AniList: {e}")
+        return None
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -130,11 +172,26 @@ def save_playlist():
     
     for series in playlist:
         series_title = series['title']
-        m3u_content += f"\n#EXTINF:-1 group-title=\"{series_title}\",{series_title}\n"
-        m3u_content += f"#PLAYLIST:{series_title}\n"
+        metadata = get_anilist_metadata(series_title)
         
-        for episode in series['episodes']:
-            m3u_content += f"#EXTINF:-1,{episode['title']}\n"
+        if metadata:
+            english_title = metadata['title']['english'] or metadata['title']['romaji']
+            description = metadata.get('description', '').replace('\n', ' ')
+            cover_image = metadata['coverImage']['large']
+            year = metadata['startDate']['year']
+            genres = ', '.join(metadata['genres'])
+            
+            m3u_content += f"\n#EXTINF:-1 group-title=\"{series_title}\" tvg-logo=\"{cover_image}\",{english_title} ({year})\n"
+            m3u_content += f"#EXTGRP:{series_title}\n"
+            m3u_content += f"#EXTDESC:{description}\n"
+            m3u_content += f"#EXTGENRE:{genres}\n"
+        else:
+            m3u_content += f"\n#EXTINF:-1 group-title=\"{series_title}\",{series_title}\n"
+            m3u_content += f"#EXTGRP:{series_title}\n"
+        
+        for i, episode in enumerate(series['episodes'], 1):
+            # Usiamo il titolo italiano dell'episodio
+            m3u_content += f"#EXTINF:-1,Episodio {i}: {episode['title']}\n"
             m3u_content += f"{episode['url']}\n"
         
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
