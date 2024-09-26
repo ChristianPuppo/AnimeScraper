@@ -6,13 +6,22 @@ from urllib.parse import urljoin
 from collections import defaultdict
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
+import os
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 
 BASE_URL = "https://www.animesaturn.mx"
 
 # Configurazione del client GraphQL per AniList
-anilist_transport = RequestsHTTPTransport(url='https://graphql.anilist.co')
+load_dotenv()
+
+ANILIST_ACCESS_TOKEN = os.getenv('AwLOmVIikAFJDApF1TC0U4mZU7fMqJRbImV7Nk0M')
+
+anilist_transport = RequestsHTTPTransport(
+    url='https://graphql.anilist.co',
+    headers={'Authorization': f'Bearer {ANILIST_ACCESS_TOKEN}'}
+)
 anilist_client = Client(transport=anilist_transport, fetch_schema_from_transport=True)
 
 def search_anime(query):
@@ -190,7 +199,6 @@ def save_playlist():
             m3u_content += f"#EXTGRP:{series_title}\n"
         
         for i, episode in enumerate(series['episodes'], 1):
-            # Usiamo il titolo italiano dell'episodio
             m3u_content += f"#EXTINF:-1,Episodio {i}: {episode['title']}\n"
             m3u_content += f"{episode['url']}\n"
         
