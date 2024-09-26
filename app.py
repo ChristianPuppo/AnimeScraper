@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 
 app = Flask(__name__)
 
-# Rimuovi completamente le righe relative a Babel
+# Il resto del codice rimane invariato
 
 BASE_URL = "https://www.animesaturn.mx"
 
