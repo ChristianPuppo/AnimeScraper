@@ -1,12 +1,11 @@
-from quart import Quart, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response
 import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
-import asyncio
 from Scraper import get_episodes, get_video_urls
 
-app = Quart(__name__)
+app = Flask(__name__)
 
 BASE_URL = "https://www.animesaturn.mx"
 
@@ -19,34 +18,34 @@ def search_anime(query):
     return [{"title": result.text.strip(), "url": urljoin(BASE_URL, result['href'])} for result in results]
 
 @app.route('/')
-async def index():
-    return await render_template('index.html')
+def index():
+    return render_template('index.html')
 
 @app.route('/search', methods=['POST'])
-async def search():
-    query = (await request.form)['query']
+def search():
+    query = request.form['query']
     results = search_anime(query)
     return jsonify(results)
 
 @app.route('/search_suggestions', methods=['POST'])
-async def search_suggestions():
-    query = (await request.form)['query']
+def search_suggestions():
+    query = request.form['query']
     results = search_anime(query)[:10]  # Limita a 10 suggerimenti
     return jsonify(results)
 
 @app.route('/episodes', methods=['POST'])
-async def episodes():
-    anime_url = (await request.form)['anime_url']
+def episodes():
+    anime_url = request.form['anime_url']
     print(f"Richiesta per gli episodi di: {anime_url}")
     episodes = get_episodes(anime_url)
     print(f"Episodi trovati: {episodes}")
     return jsonify(episodes)
 
 @app.route('/stream', methods=['POST'])
-async def stream():
-    episode_url = (await request.form)['episode_url']
+def stream():
+    episode_url = request.form['episode_url']
     print(f"Richiesta per lo streaming dell'episodio: {episode_url}")
-    video_urls = await get_video_urls([episode_url])
+    video_urls = get_video_urls([episode_url])
     if video_urls and video_urls[0]:
         print(f"URL video estratto: {video_urls[0]}")
         return jsonify({"video_url": video_urls[0]})
@@ -54,8 +53,8 @@ async def stream():
     return jsonify({"error": "Impossibile trovare il link dello streaming."})
 
 @app.route('/save_playlist', methods=['POST'])
-async def save_playlist():
-    playlist = (await request.json)['playlist']
+def save_playlist():
+    playlist = request.json['playlist']
     print(f"Salvataggio della playlist: {playlist}")
     m3u_content = "#EXTM3U\n"
     for series in playlist:
