@@ -117,18 +117,32 @@
             height: 48px;
             background-color: #e0e0e0;
             overflow: hidden;
-            border-radius: 5px; /* Bordi leggermente arrotondati */
+            border-radius: 5px;
+            position: relative;
         }
         .progress-bar-inner {
             height: 100%;
             background-color: #007AFF;
             transition: width 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            border-radius: 5px;
+        }
+        .progress-text {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             color: white;
             font-weight: bold;
-            border-radius: 5px; /* Bordi leggermente arrotondati */
+            z-index: 1;
+        }
+        .episode-count {
+            position: absolute;
+            top: 70%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 0.8em;
+            z-index: 1;
         }
         .playlist-item {
             background-color: #f0f0f0;
@@ -178,9 +192,9 @@
                         <span>Aggiungi Serie alla Lista</span>
                     </div>
                     <div v-else class="progress-bar">
-                        <div class="progress-bar-inner" :style="{ width: progress + '%' }">
-                            {{ progress }}
-                        </div>
+                        <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
+                        <div class="progress-text">{{ progress }}%</div>
+                        <div class="episode-count">{{ processedEpisodes }}/{{ totalEpisodes }}</div>
                     </div>
                 </div>
             </div>
@@ -225,7 +239,9 @@
                 suggestions: [],
                 playlist: [],
                 loading: false,
-                progress: 0
+                progress: 0,
+                processedEpisodes: 0,
+                totalEpisodes: 0
             },
             methods: {
                 async searchAnime() {
@@ -294,12 +310,14 @@
                     console.log("Aggiungi Serie alla Lista cliccato");
                     this.loading = true;
                     this.progress = 0;
+                    this.processedEpisodes = 0;
                     try {
                         const animeUrl = this.animeResults[0].url;
                         console.log("Anime URL:", animeUrl);
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
                         console.log("Risposta dal server:", response.data);
                         const episodes = response.data;
+                        this.totalEpisodes = episodes.length;
 
                         const title = this.animeResults[0].title;
                         const processedEpisodes = [];
@@ -313,6 +331,7 @@
                                 episode.url = streamResponse.data.streaming_url;
                             }
                             processedEpisodes.push(episode);
+                            this.processedEpisodes = i + 1;
                             this.progress = Math.round((i + 1) / episodes.length * 100);
                         }
 
@@ -323,6 +342,8 @@
                     } finally {
                         this.loading = false;
                         this.progress = 0;
+                        this.processedEpisodes = 0;
+                        this.totalEpisodes = 0;
                     }
                 },
                 async downloadPlaylist() {
