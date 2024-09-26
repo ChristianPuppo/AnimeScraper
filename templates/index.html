@@ -212,10 +212,6 @@
                         });
                     }
                 },
-                openInVlc() {
-                    const url = this.videoUrl || this.streamingUrl;
-                    window.open('vlc://' + url);
-                },
                 async getSuggestions() {
                     if (this.query.length > 2) {
                         const response = await axios.post('/search_suggestions', new URLSearchParams({ query: this.query }));
@@ -236,10 +232,13 @@
                         console.error('Errore nel copiare il testo: ', err);
                     });
                 },
-                addToPlaylist() {
-                    const url = this.videoUrl || this.streamingUrl;
-                    const title = this.episodes.find(ep => ep.url === url)?.title || 'Episodio';
-                    this.playlist.push({ title, url });
+                async addToPlaylist() {
+                    const response = await axios.post('/episodes', new URLSearchParams({ anime_url: this.animeResults.find(anime => anime.url === this.episodes[0].url).url }));
+                    const episodes = response.data;
+                    const title = this.animeResults.find(anime => anime.url === this.episodes[0].url).title;
+                    episodes.forEach(ep => {
+                        this.playlist.push({ title: `${title} - ${ep.title}`, url: ep.url });
+                    });
                 },
                 async savePlaylist() {
                     const response = await axios.post('/save_playlist', { playlist: this.playlist });
