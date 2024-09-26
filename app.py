@@ -150,5 +150,9 @@ def download_season():
         headers={'Content-Disposition': 'attachment; filename=anime.links'}
     )
 
+@app.context_processor
+def tpl_inject_globals():
+    return app.jinja_env.globals
+
 if __name__ == '__main__':
     app.run(debug=True)

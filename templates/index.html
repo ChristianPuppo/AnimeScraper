@@ -85,7 +85,7 @@
         <div class="search-container">
             <input v-model="query" @input="getSuggestions" @keyup.enter="searchAnime" class="input search-input" placeholder="Cerca un anime">
             <button @click="searchAnime" class="btn search-button">Cerca</button>
-            <div v-if="suggestions.length" class="suggestions">
+            <div v-if="suggestions && suggestions.length" class="suggestions">
                 <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="card">
                     {{ suggestion.title }}
                 </div>
