@@ -24,4 +24,4 @@ aiohttp==3.9.0b0
 asyncio==3.4.3
 gql==3.4.0
 python-dotenv==0.21.0
-requests_toolbelt==0.14.0
+requests_toolbelt==1.0.0
