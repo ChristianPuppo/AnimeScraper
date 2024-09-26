@@ -107,7 +107,10 @@ def extract_video_url(url):
 def get_series_metadata(title):
     try:
         print(f"DEBUG: Cercando serie su TMDb: {title}")
-        search = tv.search(title)
+        # Rimuovi "(ITA)" dal titolo per la ricerca
+        search_title = re.sub(r'\s*\(ITA\)\s*', '', title).strip()
+        print(f"DEBUG: Titolo di ricerca modificato: {search_title}")
+        search = tv.search(search_title)
         if search:
             series = search[0]
             print(f"DEBUG: Serie trovata su TMDb: {series.name}")
