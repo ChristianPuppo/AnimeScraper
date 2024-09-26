@@ -117,11 +117,21 @@ def stream():
         return jsonify({"video_url": video_url, "streaming_url": streaming_url})
     return jsonify({"error": "Impossibile trovare il link dello streaming."})
 
+@app.route('/save_playlist', methods=['POST'])
+def save_playlist():
+    playlist = request.json['playlist']
+    m3u_content = "#EXTM3U\n"
+    for item in playlist:
+        m3u_content += f"#EXTINF:-1,{item['title']}\n{item['url']}\n"
+    return Response(
+        m3u_content,
+        mimetype='text/plain',
+        headers={'Content-Disposition': 'attachment; filename=playlist.m3u'}
+    )
 
 def get_all_episode_urls(anime_url):
     episodes = get_episodes(anime_url)
     return [episode['url'] for episode in episodes]
-
 
 def extract_all_video_urls(episode_urls):
     video_urls = []
@@ -132,7 +142,6 @@ def extract_all_video_urls(episode_urls):
             if video_url and video_url.endswith('.mp4'):
                 video_urls.append(video_url)
     return video_urls
-
 
 @app.route('/download_season', methods=['POST'])
 def download_season():

@@ -81,6 +81,13 @@
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
         }
+        .list-container {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -125,7 +132,7 @@
                 <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
                 <div class="flex flex-col space-y-2">
                     <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                    <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
+                    <button @click="addToPlaylist" class="btn btn-primary text-white p-3">Aggiungilo alla Lista</button>
                 </div>
             </div>
 
@@ -134,8 +141,18 @@
                 <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
                 <div class="flex flex-col space-y-2">
                     <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                    <button @click="openInVlc" class="btn btn-primary text-white p-3">Apri in VLC</button>
+                    <button @click="addToPlaylist" class="btn btn-primary text-white p-3">Aggiungilo alla Lista</button>
                 </div>
+            </div>
+
+            <div v-if="playlist.length" class="list-container">
+                <h2 class="text-2xl font-semibold mb-3 text-primary">Lista degli episodi:</h2>
+                <ul>
+                    <li v-for="item in playlist" :key="item.url" class="mb-2">
+                        <span v-text="item.title"></span>
+                    </li>
+                </ul>
+                <button @click="savePlaylist" class="btn btn-primary text-white p-3 mt-4">Salva la lista</button>
             </div>
         </div>
     </div>
@@ -149,7 +166,8 @@
                 episodes: [],
                 videoUrl: '',
                 streamingUrl: '',
-                suggestions: []
+                suggestions: [],
+                playlist: []
             },
             methods: {
                 async searchAnime() {
@@ -217,6 +235,19 @@
                     }, (err) => {
                         console.error('Errore nel copiare il testo: ', err);
                     });
+                },
+                addToPlaylist() {
+                    const url = this.videoUrl || this.streamingUrl;
+                    const title = this.episodes.find(ep => ep.url === url)?.title || 'Episodio';
+                    this.playlist.push({ title, url });
+                },
+                async savePlaylist() {
+                    const response = await axios.post('/save_playlist', { playlist: this.playlist });
+                    const blob = new Blob([response.data], { type: 'text/plain' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'playlist.m3u';
+                    link.click();
                 }
             }
         });
