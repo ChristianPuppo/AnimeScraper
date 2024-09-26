@@ -119,6 +119,7 @@ def get_series_metadata(title):
             ' '.join(search_title.split()[:3]),  # Prendi solo le prime tre parole
             ' '.join(search_title.split()[:2]),  # Prendi solo le prime due parole
             search_title.split(':')[0].strip(),  # Prendi la parte prima dei due punti
+            re.sub(r'\s*\d+\s*$', '', search_title).strip(),  # Rimuovi numeri alla fine del titolo
         ]
         
         best_match = None
@@ -129,13 +130,16 @@ def get_series_metadata(title):
             search = tv.search(variant)
             if search:
                 for result in search:
-                    ratio = fuzz.ratio(result.name.lower(), search_title.lower())
+                    # Confronta sia con il titolo originale che con quello in italiano
+                    ratio_original = fuzz.ratio(result.name.lower(), search_title.lower())
+                    ratio_italian = fuzz.ratio(result.original_name.lower(), search_title.lower())
+                    ratio = max(ratio_original, ratio_italian)
                     if ratio > highest_ratio:
                         highest_ratio = ratio
                         best_match = result
 
         if best_match and highest_ratio > 60:  # Soglia di somiglianza
-            print(f"DEBUG: Serie trovata su TMDb: {best_match.name}")
+            print(f"DEBUG: Serie trovata su TMDb: {best_match.name} (Somiglianza: {highest_ratio}%)")
             details = tv.details(best_match.id)
             seasons = details.seasons
             episodes = []
