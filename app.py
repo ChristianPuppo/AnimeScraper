@@ -105,21 +105,27 @@ def search_suggestions():
 @app.route('/episodes', methods=['POST'])
 def episodes():
     anime_url = request.form['anime_url']
+    print(f"Richiesta per gli episodi di: {anime_url}")
     episodes = get_episodes(anime_url)
+    print(f"Episodi trovati: {episodes}")
     return jsonify(episodes)
 
 @app.route('/stream', methods=['POST'])
 def stream():
     episode_url = request.form['episode_url']
+    print(f"Richiesta per lo streaming dell'episodio: {episode_url}")
     streaming_url = get_streaming_url(episode_url)
     if streaming_url:
         video_url = extract_video_url(streaming_url)
+        print(f"URL video estratto: {video_url}")
         return jsonify({"video_url": video_url, "streaming_url": streaming_url})
+    print("Impossibile trovare il link dello streaming.")
     return jsonify({"error": "Impossibile trovare il link dello streaming."})
 
 @app.route('/save_playlist', methods=['POST'])
 def save_playlist():
     playlist = request.json['playlist']
+    print(f"Salvataggio della playlist: {playlist}")
     m3u_content = "#EXTM3U\n"
     for series in playlist:
         for episode in series['episodes']:
@@ -128,34 +134,6 @@ def save_playlist():
         m3u_content,
         mimetype='text/plain',
         headers={'Content-Disposition': 'attachment; filename=playlist.m3u'}
-    )
-
-def get_all_episode_urls(anime_url):
-    episodes = get_episodes(anime_url)
-    return [episode['url'] for episode in episodes]
-
-def extract_all_video_urls(episode_urls):
-    video_urls = []
-    for url in episode_urls:
-        streaming_url = get_streaming_url(url)
-        if streaming_url:
-            video_url = extract_video_url(streaming_url)
-            if video_url and video_url.endswith('.mp4'):
-                video_urls.append(video_url)
-    return video_urls
-
-@app.route('/download_season', methods=['POST'])
-def download_season():
-    anime_url = request.form['anime_url']
-    episode_urls = get_all_episode_urls(anime_url)
-    video_urls = extract_all_video_urls(episode_urls)
-
-    links_content = '\n'.join(video_urls)
-
-    return Response(
-        links_content,
-        mimetype='text/plain',
-        headers={'Content-Disposition': 'attachment; filename=anime.links'}
     )
 
 if __name__ == '__main__':

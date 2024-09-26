@@ -253,12 +253,17 @@
                     });
                 },
                 async addSeriesToPlaylist() {
+                    console.log("Aggiungi Serie alla Lista cliccato");
                     this.loading = true;
                     try {
-                        const response = await axios.post('/episodes', new URLSearchParams({ anime_url: this.animeResults.find(anime => anime.url === this.episodes[0].url).url }));
+                        const animeUrl = this.animeResults.find(anime => anime.url === this.episodes[0].url).url;
+                        console.log("Anime URL:", animeUrl);
+                        const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
+                        console.log("Risposta dal server:", response.data);
                         const episodes = response.data;
                         const title = this.animeResults.find(anime => anime.url === this.episodes[0].url).title;
                         this.playlist.push({ title: title, episodes: episodes });
+                        console.log("Playlist aggiornata:", this.playlist);
                     } catch (error) {
                         console.error('Errore nell\'aggiungere alla lista:', error);
                     } finally {
@@ -266,6 +271,7 @@
                     }
                 },
                 async downloadPlaylist() {
+                    console.log("Scarica la lista cliccato");
                     const response = await axios.post('/save_playlist', { playlist: this.playlist });
                     const blob = new Blob([response.data], { type: 'text/plain' });
                     const link = document.createElement('a');
