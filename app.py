@@ -118,34 +118,42 @@ def get_series_metadata(title):
             re.sub(r'[:\-–].*$', '', search_title).strip(),  # Prendi solo la prima parte del titolo
             ' '.join(search_title.split()[:3]),  # Prendi solo le prime tre parole
             ' '.join(search_title.split()[:2]),  # Prendi solo le prime due parole
+            search_title.split(':')[0].strip(),  # Prendi la parte prima dei due punti
         ]
+        
+        best_match = None
+        highest_ratio = 0
         
         for variant in title_variants:
             print(f"DEBUG: Provando variante: {variant}")
             search = tv.search(variant)
             if search:
-                # Trova la corrispondenza migliore usando fuzzy matching
-                best_match = max(search, key=lambda x: fuzz.ratio(x.name.lower(), search_title.lower()))
-                if fuzz.ratio(best_match.name.lower(), search_title.lower()) > 60:  # Soglia di somiglianza
-                    print(f"DEBUG: Serie trovata su TMDb: {best_match.name}")
-                    details = tv.details(best_match.id)
-                    seasons = details.seasons
-                    episodes = []
-                    for s in seasons:
-                        print(f"DEBUG: Recuperando dettagli per la stagione {s.season_number}")
-                        season_details = season.details(best_match.id, s.season_number)
-                        episodes.extend(season_details.episodes)
-                    print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
-                    return {
-                        'id': best_match.id,
-                        'title': details.name,
-                        'original_title': details.original_name,
-                        'overview': details.overview,
-                        'first_air_date': details.first_air_date,
-                        'genres': [genre['name'] for genre in details.genres],
-                        'poster_path': f"https://image.tmdb.org/t/p/w500{details.poster_path}" if details.poster_path else None,
-                        'episodes': episodes
-                    }
+                for result in search:
+                    ratio = fuzz.ratio(result.name.lower(), search_title.lower())
+                    if ratio > highest_ratio:
+                        highest_ratio = ratio
+                        best_match = result
+
+        if best_match and highest_ratio > 60:  # Soglia di somiglianza
+            print(f"DEBUG: Serie trovata su TMDb: {best_match.name}")
+            details = tv.details(best_match.id)
+            seasons = details.seasons
+            episodes = []
+            for s in seasons:
+                print(f"DEBUG: Recuperando dettagli per la stagione {s.season_number}")
+                season_details = season.details(best_match.id, s.season_number)
+                episodes.extend(season_details.episodes)
+            print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
+            return {
+                'id': best_match.id,
+                'title': details.name,
+                'original_title': details.original_name,
+                'overview': details.overview,
+                'first_air_date': details.first_air_date,
+                'genres': [genre['name'] for genre in details.genres],
+                'poster_path': f"https://image.tmdb.org/t/p/w500{details.poster_path}" if details.poster_path else None,
+                'episodes': episodes
+            }
         
         print(f"DEBUG: Nessuna serie trovata su TMDb per: {search_title}")
     except Exception as e:
@@ -226,7 +234,6 @@ def save_playlist():
         
         for i, episode in enumerate(series['episodes'], 1):
             file_name = episode['url'].split('/')[-1]
-            anime_name = episode['url'].split('/')[-2]
             episode_number = re.search(r'Ep_(\d+)', file_name)
             if episode_number:
                 episode_number = int(episode_number.group(1))
@@ -235,7 +242,7 @@ def save_playlist():
                 episode_title = f"Episodio {i}"
             
             print(f"DEBUG: Titolo episodio {i}: {episode_title}")
-            episode_title = f"{episode_title} - {anime_name}"
+            episode_title = f"{episode_title} - {series_title}"
             
             m3u_content += f"#EXTINF:-1,{episode_title}\n"
             m3u_content += f"{episode['url']}\n"
