@@ -16,7 +16,7 @@ BASE_URL = "https://www.animesaturn.mx"
 # Configurazione del client GraphQL per AniList
 load_dotenv()
 
-ANILIST_ACCESS_TOKEN = os.getenv('AwLOmVIikAFJDApF1TC0U4mZU7fMqJRbImV7Nk0M')
+ANILIST_ACCESS_TOKEN = os.getenv('ANILIST_ACCESS_TOKEN')  # Nome della variabile d'ambiente
 
 anilist_transport = RequestsHTTPTransport(
     url='https://graphql.anilist.co',
