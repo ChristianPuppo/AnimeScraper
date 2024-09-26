@@ -228,7 +228,8 @@
                 suggestions: [],
                 playlist: [],
                 loading: false,
-                progress: 0
+                progress: 0,
+                selectedAnime: null  // Aggiungiamo questa nuova variabile
             },
             methods: {
                 async searchAnime() {
@@ -244,6 +245,8 @@
                     this.episodes = response.data;
                     this.videoUrl = '';
                     this.streamingUrl = '';
+                    // Salviamo l'anime selezionato
+                    this.selectedAnime = this.animeResults.find(anime => anime.url === animeUrl);
                     this.$nextTick(() => {
                         this.scrollTo('episodesSection');
                     });
@@ -298,13 +301,16 @@
                     this.loading = true;
                     this.progress = 0;
                     try {
-                        const animeUrl = this.animeResults[0].url;
+                        if (!this.selectedAnime) {
+                            throw new Error("Nessuna serie selezionata");
+                        }
+                        const animeUrl = this.selectedAnime.url;
                         console.log("Anime URL:", animeUrl);
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
                         console.log("Risposta dal server:", response.data);
                         const episodes = response.data;
 
-                        const title = this.animeResults[0].title;
+                        const title = this.selectedAnime.title;  // Usiamo il titolo esatto selezionato
                         const processedEpisodes = [];
 
                         for (let i = 0; i < episodes.length; i++) {
@@ -323,6 +329,7 @@
                         console.log("Playlist aggiornata:", this.playlist);
                     } catch (error) {
                         console.error('Errore nell\'aggiungere alla lista:', error);
+                        alert('Errore nell\'aggiungere la serie alla lista: ' + error.message);
                     } finally {
                         this.loading = false;
                         this.progress = 0;
