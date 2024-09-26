@@ -126,22 +126,23 @@ def stream():
 @app.route('/save_playlist', methods=['POST'])
 def save_playlist():
     playlist = request.json['playlist']
-    m3u_content = "#EXTM3U\n"
+    m3u_content = "#EXTM3U\n\n"
     
-    # Raggruppa le serie per nome (escludendo il numero di stagione)
-    groups = defaultdict(list)
     for series in playlist:
-        # Estrai il nome della serie senza il numero di stagione
-        series_name = re.sub(r'\s+\d+$', '', series['title'])
-        groups[series_name].append(series)
-    
-    for group_name, group_series in groups.items():
-        m3u_content += f"\n#EXTINF:-1 group-title=\"{group_name}\",{group_name}\n"
-        for series in group_series:
-            m3u_content += f"\n#EXTINF:-1,{series['title']}\n"
-            for episode in series['episodes']:
-                m3u_content += f"#EXTINF:-1,{episode['title']}\n{episode['url']}\n"
-        m3u_content += "\n#EXT-X-DISCONTINUITY\n"  # Separatore tra serie
+        series_name = series['title']
+        m3u_content += f"#EXTINF:-1 tvg-logo=\"\" group-title=\"{series_name}\",{series_name}\n"
+        m3u_content += f"#EXTVLCOPT:network-caching=1000\n"
+        m3u_content += f"#PLAYLIST:{series_name}\n"
+        
+        for episode in series['episodes']:
+            m3u_content += f"#EXTINF:-1 tvg-logo=\"\" group-title=\"{series_name}\",{episode['title']}\n"
+            m3u_content += f"#EXTVLCOPT:network-caching=1000\n"
+            m3u_content += f"{episode['url']}\n"
+        
+        m3u_content += "\n#EXT-X-DISCONTINUITY\n"
+        m3u_content += f"#EXTINF:-1 tvg-logo=\"\" group-title=\"Separatori\",--- Fine {series_name} ---\n"
+        m3u_content += "#EXTVLCOPT:network-caching=1000\n"
+        m3u_content += "https://example.com/separator.mp4\n\n"
     
     return Response(
         m3u_content,
