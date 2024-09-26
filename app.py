@@ -136,5 +136,33 @@ def save_playlist():
         headers={'Content-Disposition': 'attachment; filename=playlist.m3u'}
     )
 
+@app.route('/add_series_to_playlist', methods=['POST'])
+def add_series_to_playlist():
+    anime_url = request.form['anime_url']
+    episodes = get_episodes(anime_url)
+    total_episodes = len(episodes)
+    processed_episodes = []
+
+    for i, episode in enumerate(episodes):
+        streaming_url = get_streaming_url(episode['url'])
+        if streaming_url:
+            video_url = extract_video_url(streaming_url)
+            if video_url:
+                episode['url'] = video_url
+            else:
+                episode['url'] = streaming_url
+        processed_episodes.append(episode)
+        progress = round((i + 1) / total_episodes * 100)
+        yield json.dumps({
+            'progress': progress,
+            'processedEpisodes': i + 1,
+            'totalEpisodes': total_episodes
+        }) + '\n'
+
+    return json.dumps({
+        'episodes': processed_episodes,
+        'totalEpisodes': total_episodes
+    })
+
 if __name__ == '__main__':
     app.run(debug=True)
