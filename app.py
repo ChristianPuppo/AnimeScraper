@@ -211,7 +211,16 @@ def save_playlist():
             m3u_content += f"#EXTGRP:{series_title}\n"
         
         for i, episode in enumerate(series['episodes'], 1):
-            m3u_content += f"#EXTINF:-1,Episodio {i}: {episode['title']}\n"
+            # Estrai il nome del file dall'URL
+            file_name = episode['url'].split('/')[-1]
+            # Rimuovi l'estensione del file e sostituisci underscore con spazi
+            episode_title = file_name.rsplit('.', 1)[0].replace('_', ' ')
+            # Rimuovi prefissi comuni come "Ep" o numeri episodio
+            episode_title = re.sub(r'^.*?(\d+)(?:_|\s)', r'Episodio \1: ', episode_title)
+            # Rimuovi suffissi come "ITA"
+            episode_title = re.sub(r'_?ITA$', '', episode_title)
+            
+            m3u_content += f"#EXTINF:-1,{episode_title}\n"
             m3u_content += f"{episode['url']}\n"
         
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
