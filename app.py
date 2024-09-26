@@ -121,8 +121,9 @@ def stream():
 def save_playlist():
     playlist = request.json['playlist']
     m3u_content = "#EXTM3U\n"
-    for item in playlist:
-        m3u_content += f"#EXTINF:-1,{item['title']}\n{item['url']}\n"
+    for series in playlist:
+        for episode in series['episodes']:
+            m3u_content += f"#EXTINF:-1,{series['title']} - {episode['title']}\n{episode['url']}\n"
     return Response(
         m3u_content,
         mimetype='text/plain',

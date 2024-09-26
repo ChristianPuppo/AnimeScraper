@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style"="black-translucent">
     <title>AnimeScraper by Chruis</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
@@ -165,13 +165,13 @@
             </div>
 
             <div v-if="playlist.length" class="list-container">
-                <h2 class="text-2xl font-semibold mb-3 text-primary">Lista degli episodi:</h2>
+                <h2 class="text-2xl font-semibold mb-3 text-primary">Lista delle serie:</h2>
                 <ul>
-                    <li v-for="item in playlist" :key="item.url" class="mb-2">
+                    <li v-for="item in playlist" :key="item.title" class="mb-2">
                         <span v-text="item.title"></span>
                     </li>
                 </ul>
-                <button @click="savePlaylist" class="btn btn-primary text-white p-3 mt-4">Salva la lista</button>
+                <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4">Scarica la lista</button>
             </div>
         </div>
     </div>
@@ -258,16 +258,14 @@
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: this.animeResults.find(anime => anime.url === this.episodes[0].url).url }));
                         const episodes = response.data;
                         const title = this.animeResults.find(anime => anime.url === this.episodes[0].url).title;
-                        episodes.forEach(ep => {
-                            this.playlist.push({ title: `${title} - ${ep.title}`, url: ep.url });
-                        });
+                        this.playlist.push({ title: title, episodes: episodes });
                     } catch (error) {
                         console.error('Errore nell\'aggiungere alla lista:', error);
                     } finally {
                         this.loading = false;
                     }
                 },
-                async savePlaylist() {
+                async downloadPlaylist() {
                     const response = await axios.post('/save_playlist', { playlist: this.playlist });
                     const blob = new Blob([response.data], { type: 'text/plain' });
                     const link = document.createElement('a');
