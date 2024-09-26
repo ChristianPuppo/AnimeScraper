@@ -6,78 +6,82 @@ import os
 from urllib.parse import urljoin
 from colorama import init, Fore, Style
 import webbrowser
+import aiohttp
+import asyncio
 
 init(autoreset=True)
 
 BASE_URL = "https://www.animesaturn.mx"
 
 
-def search_anime(query):
+async def fetch(session, url):
+    async with session.get(url) as response:
+        return await response.text()
+
+
+async def search_anime(query):
     search_url = urljoin(BASE_URL, f"/animelist?search={query}")
-    response = requests.get(search_url)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, 'html.parser')
-    results = soup.find_all('a', class_='badge-archivio')
-    return [(result.text.strip(), urljoin(BASE_URL, result['href'])) for result in results]
+    async with aiohttp.ClientSession() as session:
+        response_text = await fetch(session, search_url)
+        soup = BeautifulSoup(response_text, 'html.parser')
+        results = soup.find_all('a', class_='badge-archivio')
+        return [(result.text.strip(), urljoin(BASE_URL, result['href'])) for result in results]
 
 
-def get_episodes(anime_url):
-    response = requests.get(anime_url)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, 'html.parser')
-    episodes = soup.find_all('a', class_='bottone-ep')
-    episode_data = []
+async def get_episodes(anime_url):
+    async with aiohttp.ClientSession() as session:
+        response_text = await fetch(session, anime_url)
+        soup = BeautifulSoup(response_text, 'html.parser')
+        episodes = soup.find_all('a', class_='bottone-ep')
+        episode_data = []
 
-    for ep in episodes:
-        thumbnail_container = ep.find_previous('div', class_='container shadow rounded bg-dark-as-box mb-3 p-3 w-100 d-flex justify-content-center')
-        thumbnail_url = None
-        if thumbnail_container:
-            thumbnail_img = thumbnail_container.find('img', class_='img-fluid cover-anime rounded')
-            if thumbnail_img and 'src' in thumbnail_img.attrs:
-                thumbnail_url = thumbnail_img['src']
+        for ep in episodes:
+            thumbnail_container = ep.find_previous('div', class_='container shadow rounded bg-dark-as-box mb-3 p-3 w-100 d-flex justify-content-center')
+            thumbnail_url = None
+            if thumbnail_container:
+                thumbnail_img = thumbnail_container.find('img', class_='img-fluid cover-anime rounded')
+                if thumbnail_img and 'src' in thumbnail_img.attrs:
+                    thumbnail_url = thumbnail_img['src']
 
-        episode_data.append({
-            "title": ep.text.strip(),
-            "url": urljoin(BASE_URL, ep['href']),
-            "thumbnail": thumbnail_url
-        })
+            episode_data.append({
+                "title": ep.text.strip(),
+                "url": urljoin(BASE_URL, ep['href']),
+                "thumbnail": thumbnail_url
+            })
 
-    return episode_data
+        return episode_data
 
 
-def get_streaming_url(episode_url):
-    response = requests.get(episode_url)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, 'html.parser')
+async def get_streaming_url(session, episode_url):
+    response_text = await fetch(session, episode_url)
+    soup = BeautifulSoup(response_text, 'html.parser')
     streaming_link = soup.find('a', href=lambda href: href and 'watch?file=' in href)
     if streaming_link:
         return urljoin(BASE_URL, streaming_link['href'])
     return None
 
 
-def extract_video_url(url):
+async def extract_video_url(session, url):
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
+        response_text = await fetch(session, url)
+        soup = BeautifulSoup(response_text, 'html.parser')
 
         # Cerca un iframe nella pagina
         iframe = soup.find('iframe')
-        if (iframe and 'src' in iframe.attrs):
+        if iframe and 'src' in iframe.attrs:
             iframe_src = iframe['src']
-            iframe_response = requests.get(iframe_src)
-            iframe_response.raise_for_status()
+            iframe_response_text = await fetch(session, iframe_src)
             video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
 
             # Cerca negli elementi script del iframe
-            iframe_soup = BeautifulSoup(iframe_response.text, 'html.parser')
+            iframe_soup = BeautifulSoup(iframe_response_text, 'html.parser')
             for script in iframe_soup.find_all('script'):
                 match = re.search(video_pattern, str(script))
                 if match:
                     return match.group(0)
 
             # Cerca direttamente nel testo del iframe
-            match = re.search(video_pattern, iframe_response.text)
+            match = re.search(video_pattern, iframe_response_text)
             if match:
                 return match.group(0)
 
@@ -88,14 +92,36 @@ def extract_video_url(url):
             if match:
                 return match.group(0)
 
-        match = re.search(video_pattern, response.text)
+        match = re.search(video_pattern, response_text)
         if match:
             return match.group(0)
 
-    except requests.RequestException as e:
+    except aiohttp.ClientError as e:
         print(f"{Fore.RED}Errore nell'estrazione dell'URL video: {e}")
 
     return None
+
+
+async def get_video_urls(episodes):
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for episode in episodes:
+            tasks.append(get_streaming_url(session, episode['url']))
+        streaming_urls = await asyncio.gather(*tasks)
+
+        tasks = []
+        for streaming_url in streaming_urls:
+            if streaming_url:
+                tasks.append(extract_video_url(session, streaming_url))
+            else:
+                tasks.append(None)
+        video_urls = await asyncio.gather(*tasks)
+
+        for i, video_url in enumerate(video_urls):
+            if video_url:
+                episodes[i]['url'] = video_url
+
+    return episodes
 
 
 def play_video(video_url):
