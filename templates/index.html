@@ -142,6 +142,10 @@
                         <span class="text-primary" v-text="episode.title"></span>
                     </div>
                 </div>
+                <button @click="addSeriesToPlaylist" class="btn btn-primary text-white p-3 flex items-center justify-center mt-4">
+                    <span v-if="!loading" class="mr-2">Aggiungi Serie alla Lista</span>
+                    <div v-if="loading" class="loading-spinner"></div>
+                </button>
             </div>
 
             <div v-if="videoUrl" ref="streamingSection" class="mb-6 card p-6">
@@ -149,10 +153,6 @@
                 <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
                 <div class="flex flex-col space-y-2">
                     <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                    <button @click="addToPlaylist" class="btn btn-primary text-white p-3 flex items-center justify-center">
-                        <span v-if="!loading" class="mr-2">Aggiungilo alla Lista</span>
-                        <div v-if="loading" class="loading-spinner"></div>
-                    </button>
                 </div>
             </div>
 
@@ -161,10 +161,6 @@
                 <p class="mb-3 text-gray-700 break-all" v-text="streamingUrl"></p>
                 <div class="flex flex-col space-y-2">
                     <button @click="copyToClipboard(streamingUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
-                    <button @click="addToPlaylist" class="btn btn-primary text-white p-3 flex items-center justify-center">
-                        <span v-if="!loading" class="mr-2">Aggiungilo alla Lista</span>
-                        <div v-if="loading" class="loading-spinner"></div>
-                    </button>
                 </div>
             </div>
 
@@ -256,7 +252,7 @@
                         console.error('Errore nel copiare il testo: ', err);
                     });
                 },
-                async addToPlaylist() {
+                async addSeriesToPlaylist() {
                     this.loading = true;
                     try {
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: this.animeResults.find(anime => anime.url === this.episodes[0].url).url }));
