@@ -26,7 +26,23 @@ def get_episodes(anime_url):
     response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
     episodes = soup.find_all('a', class_='bottone-ep')
-    return [(ep.text.strip(), urljoin(BASE_URL, ep['href'])) for ep in episodes]
+    episode_data = []
+
+    for ep in episodes:
+        thumbnail_container = ep.find_previous('div', class_='container shadow rounded bg-dark-as-box mb-3 p-3 w-100 d-flex justify-content-center')
+        thumbnail_url = None
+        if thumbnail_container:
+            thumbnail_img = thumbnail_container.find('img', class_='img-fluid cover-anime rounded')
+            if thumbnail_img and 'src' in thumbnail_img.attrs:
+                thumbnail_url = thumbnail_img['src']
+
+        episode_data.append({
+            "title": ep.text.strip(),
+            "url": urljoin(BASE_URL, ep['href']),
+            "thumbnail": thumbnail_url
+        })
+
+    return episode_data
 
 
 def get_streaming_url(episode_url):

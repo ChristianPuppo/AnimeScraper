@@ -256,12 +256,12 @@
                     console.log("Aggiungi Serie alla Lista cliccato");
                     this.loading = true;
                     try {
-                        const animeUrl = this.animeResults.find(anime => anime.url === this.episodes[0].url).url;
+                        const animeUrl = this.animeResults[0].url; // Prendi l'URL del primo risultato
                         console.log("Anime URL:", animeUrl);
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
                         console.log("Risposta dal server:", response.data);
                         const episodes = response.data;
-                        const title = this.animeResults.find(anime => anime.url === this.episodes[0].url).title;
+                        const title = this.animeResults[0].title; // Prendi il titolo del primo risultato
                         this.playlist.push({ title: title, episodes: episodes });
                         console.log("Playlist aggiornata:", this.playlist);
                     } catch (error) {
