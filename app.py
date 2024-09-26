@@ -13,11 +13,13 @@ app = Flask(__name__)
 
 BASE_URL = "https://www.animesaturn.mx"
 
-# Configurazione del client GraphQL per AniList
+# Carica le variabili d'ambiente dal file .env
 load_dotenv()
 
+# Ottieni il token di accesso AniList dalle variabili d'ambiente
 ANILIST_ACCESS_TOKEN = os.getenv('ANILIST_ACCESS_TOKEN')  # Nome della variabile d'ambiente
 
+# Configurazione del client GraphQL per AniList con autenticazione
 anilist_transport = RequestsHTTPTransport(
     url='https://graphql.anilist.co',
     headers={'Authorization': f'Bearer {ANILIST_ACCESS_TOKEN}'}
@@ -115,6 +117,8 @@ def get_anilist_metadata(title):
             title {
                 romaji
                 english
+                native
+                italian
             }
             description
             episodes
@@ -178,22 +182,30 @@ def stream():
 def save_playlist():
     playlist = request.json['playlist']
     m3u_content = "#EXTM3U\n"
+    playlist_title = "Playlist Anime"  # Titolo predefinito
     
     for series in playlist:
         series_title = series['title']
         metadata = get_anilist_metadata(series_title)
         
         if metadata:
+            # Priorità al titolo italiano, altrimenti usa quello originale
+            italian_title = metadata['title'].get('italian') or series_title
             english_title = metadata['title']['english'] or metadata['title']['romaji']
             description = metadata.get('description', '').replace('\n', ' ')
             cover_image = metadata['coverImage']['large']
             year = metadata['startDate']['year']
             genres = ', '.join(metadata['genres'])
             
-            m3u_content += f"\n#EXTINF:-1 group-title=\"{series_title}\" tvg-logo=\"{cover_image}\",{english_title} ({year})\n"
-            m3u_content += f"#EXTGRP:{series_title}\n"
+            # Usa il titolo italiano per il gruppo
+            m3u_content += f"\n#EXTINF:-1 group-title=\"{italian_title}\" tvg-logo=\"{cover_image}\",{english_title} ({year})\n"
+            m3u_content += f"#EXTGRP:{italian_title}\n"
             m3u_content += f"#EXTDESC:{description}\n"
             m3u_content += f"#EXTGENRE:{genres}\n"
+            
+            # Aggiorna il titolo della playlist con il primo titolo italiano trovato
+            if playlist_title == "Playlist Anime":
+                playlist_title = f"Playlist {italian_title}"
         else:
             m3u_content += f"\n#EXTINF:-1 group-title=\"{series_title}\",{series_title}\n"
             m3u_content += f"#EXTGRP:{series_title}\n"
@@ -207,7 +219,7 @@ def save_playlist():
     return Response(
         m3u_content,
         mimetype='text/plain',
-        headers={'Content-Disposition': 'attachment; filename=playlist.m3u'}
+        headers={'Content-Disposition': f'attachment; filename="{playlist_title}.m3u"'}
     )
 
 if __name__ == '__main__':
