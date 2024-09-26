@@ -1,16 +1,12 @@
 from flask import Flask, render_template, request, jsonify, Response
-from flask_babel import Babel
 import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
 
 app = Flask(__name__)
-babel = Babel(app)
 
-@babel.localeselector
-def get_locale():
-    return 'it'  # Impostiamo la lingua italiana
+# Rimuovi completamente le righe relative a Babel
 
 BASE_URL = "https://www.animesaturn.mx"
 
