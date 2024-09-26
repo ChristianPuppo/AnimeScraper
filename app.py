@@ -6,8 +6,6 @@ from urllib.parse import urljoin
 
 app = Flask(__name__)
 
-# Il resto del codice rimane invariato
-
 BASE_URL = "https://www.animesaturn.mx"
 
 def search_anime(query):
@@ -149,10 +147,6 @@ def download_season():
         mimetype='text/plain',
         headers={'Content-Disposition': 'attachment; filename=anime.links'}
     )
-
-@app.context_processor
-def tpl_inject_globals():
-    return app.jinja_env.globals
 
 if __name__ == '__main__':
     app.run(debug=True)
