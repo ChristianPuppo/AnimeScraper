@@ -208,7 +208,7 @@
                 <h2 class="text-2xl font-semibold mb-3 text-primary">Lista delle serie:</h2>
                 <ul>
                     <li v-for="item in playlist" :key="item.title" class="playlist-item">
-                        <span v-text="item.title + ' - ' + item.total_episodes + ' episodi'"></span>
+                        <span v-text="item.title + ' - ' + item.episodes.length + ' episodi'"></span>
                     </li>
                 </ul>
                 <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4 full-width-btn">Scarica la lista</button>
@@ -302,7 +302,7 @@
                         console.log("Anime URL:", animeUrl);
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
                         console.log("Risposta dal server:", response.data);
-                        const { episodes, total_episodes } = response.data;
+                        const episodes = response.data;
 
                         const title = this.animeResults[0].title;
                         const processedEpisodes = [];
@@ -319,7 +319,7 @@
                             this.progress = Math.round((i + 1) / episodes.length * 100);
                         }
 
-                        this.playlist.push({ title: title, episodes: processedEpisodes, total_episodes: total_episodes });
+                        this.playlist.push({ title: title, episodes: processedEpisodes });
                         console.log("Playlist aggiornata:", this.playlist);
                     } catch (error) {
                         console.error('Errore nell\'aggiungere alla lista:', error);

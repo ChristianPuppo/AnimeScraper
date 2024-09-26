@@ -37,10 +37,7 @@ def get_episodes(anime_url):
             "thumbnail": thumbnail_url
         })
 
-    return {
-        "episodes": episode_data,
-        "total_episodes": len(episode_data)
-    }
+    return episode_data
 
 def get_streaming_url(episode_url):
     response = requests.get(episode_url)
@@ -109,9 +106,9 @@ def search_suggestions():
 def episodes():
     anime_url = request.form['anime_url']
     print(f"Richiesta per gli episodi di: {anime_url}")
-    episodes_data = get_episodes(anime_url)
-    print(f"Episodi trovati: {episodes_data}")
-    return jsonify(episodes_data)
+    episodes = get_episodes(anime_url)
+    print(f"Episodi trovati: {episodes}")
+    return jsonify(episodes)
 
 @app.route('/stream', methods=['POST'])
 def stream():

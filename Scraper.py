@@ -42,10 +42,7 @@ def get_episodes(anime_url):
             "thumbnail": thumbnail_url
         })
 
-    return {
-        "episodes": episode_data,
-        "total_episodes": len(episode_data)
-    }
+    return episode_data
 
 
 def get_streaming_url(episode_url):
