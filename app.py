@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
+from collections import defaultdict
 
 app = Flask(__name__)
 
@@ -125,11 +126,23 @@ def stream():
 @app.route('/save_playlist', methods=['POST'])
 def save_playlist():
     playlist = request.json['playlist']
-    print(f"Salvataggio della playlist: {playlist}")
     m3u_content = "#EXTM3U\n"
+    
+    # Raggruppa le serie per nome (escludendo il numero di stagione)
+    groups = defaultdict(list)
     for series in playlist:
-        for episode in series['episodes']:
-            m3u_content += f"#EXTINF:-1,{series['title']} - {episode['title']}\n{episode['url']}\n"
+        # Estrai il nome della serie senza il numero di stagione
+        series_name = re.sub(r'\s+\d+$', '', series['title'])
+        groups[series_name].append(series)
+    
+    for group_name, group_series in groups.items():
+        m3u_content += f"\n#EXTINF:-1 group-title=\"{group_name}\",{group_name}\n"
+        for series in group_series:
+            m3u_content += f"\n#EXTINF:-1,{series['title']}\n"
+            for episode in series['episodes']:
+                m3u_content += f"#EXTINF:-1,{episode['title']}\n{episode['url']}\n"
+        m3u_content += "\n#EXT-X-DISCONTINUITY\n"  # Separatore tra serie
+    
     return Response(
         m3u_content,
         mimetype='text/plain',

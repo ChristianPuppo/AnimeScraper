@@ -212,6 +212,7 @@
                     </li>
                 </ul>
                 <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4 full-width-btn">Scarica la lista</button>
+                <button @click="clearPlaylist" class="btn btn-secondary text-white p-3 mt-2 full-width-btn">Cancella la lista</button>
             </div>
         </div>
     </div>
@@ -343,6 +344,10 @@
                     link.href = URL.createObjectURL(blob);
                     link.download = 'playlist.m3u';
                     link.click();
+                },
+                clearPlaylist() {
+                    this.playlist = [];
+                    console.log("Lista cancellata");
                 }
             }
         });
