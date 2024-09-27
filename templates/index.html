@@ -363,29 +363,26 @@
                         const title = this.selectedAnime.title;
                         const processedEpisodes = [];
 
-                        // Aggiorniamo la barra di progresso per il recupero degli episodi
-                        this.progress = 10;
+                        this.progress = 5;
 
-                        // Recuperiamo tutti i link degli episodi in parallelo
-                        const streamResponses = await Promise.all(episodes.map(episode => 
-                            axios.post('/stream', new URLSearchParams({ episode_url: episode.url }))
-                        ));
-
-                        // Aggiorniamo la barra di progresso dopo aver ottenuto tutti i link
-                        this.progress = 50;
-
-                        // Processiamo le risposte
                         for (let i = 0; i < episodes.length; i++) {
                             const episode = episodes[i];
-                            const streamResponse = streamResponses[i];
+                            const streamResponse = await axios.post('/stream', new URLSearchParams({ episode_url: episode.url }));
                             console.log(`DEBUG: Risposta streaming per episodio ${i + 1}:`, streamResponse.data);
+                            
+                            let episodeUrl = '';
                             if (streamResponse.data.video_url) {
-                                episode.url = streamResponse.data.video_url;
+                                episodeUrl = streamResponse.data.video_url;
                             } else if (streamResponse.data.streaming_url) {
-                                episode.url = streamResponse.data.streaming_url;
+                                episodeUrl = streamResponse.data.streaming_url;
                             }
-                            processedEpisodes.push(episode);
-                            this.progress = 50 + Math.round((i + 1) / episodes.length * 50);
+                            
+                            processedEpisodes.push({
+                                title: episode.title || `Episodio ${i + 1}`,
+                                url: episodeUrl
+                            });
+                            
+                            this.progress = 5 + Math.round((i + 1) / episodes.length * 95);
                         }
 
                         this.playlist.push({ title: title, episodes: processedEpisodes });

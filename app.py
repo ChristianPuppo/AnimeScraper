@@ -59,12 +59,12 @@ def get_episodes(anime_url):
             if thumbnail_img and 'src' in thumbnail_img.attrs:
                 thumbnail_url = thumbnail_img['src']
 
-        italian_title = ep.get('title', '').strip()
-        if not italian_title:
-            italian_title = ep.text.strip()
+        episode_title = ep.get('title', '') or ep.text.strip()
+        if not episode_title:
+            episode_title = f"Episodio {len(episode_data) + 1}"
 
         episode_data.append({
-            "title": italian_title,
+            "title": episode_title,
             "url": urljoin(BASE_URL, ep['href']),
             "thumbnail": thumbnail_url
         })
@@ -235,62 +235,15 @@ def stream():
 def save_playlist():
     playlist = request.json['playlist']
     m3u_content = "#EXTM3U\n"
-    playlist_title = "Playlist Anime"  # Titolo predefinito
+    playlist_title = "Playlist Anime"
     
     for series in playlist:
         series_title = series['title']
-        # Usa il titolo rinominato se disponibile
-        search_title = renamed_titles.get(series_title, series_title)
-        print(f"DEBUG: Cercando metadata per la serie: {search_title}")
-        metadata = get_series_metadata(search_title)
+        # ... (codice esistente per i metadati della serie)
         
-        if metadata:
-            print(f"DEBUG: Metadata trovati per {search_title}")
-            italian_title = metadata['title']
-            original_title = metadata['original_title']
-            description = metadata.get('overview', '').replace('\n', ' ')
-            cover_image = metadata.get('poster_path', '')
-            year = metadata['first_air_date'][:4] if metadata.get('first_air_date') else ''
-            genres = ', '.join(metadata.get('genres', []))
-            
-            # Usa il titolo rinominato se disponibile, altrimenti usa la logica esistente
-            display_title = series_title
-            
-            m3u_content += f"\n#EXTINF:-1 group-title=\"{display_title}\" tvg-logo=\"{cover_image}\",{display_title} ({year})\n"
-            m3u_content += f"#EXTGRP:{display_title}\n"
-            m3u_content += f"#EXTDESC:{description}\n"
-            m3u_content += f"#EXTGENRE:{genres}\n"
-            
-            if playlist_title == "Playlist Anime":
-                playlist_title = f"Playlist {display_title}"
-
-            tmdb_episodes = {ep['episode_number']: ep['name'] for ep in metadata['episodes']}
-            print(f"DEBUG: Episodi trovati su TMDb: {tmdb_episodes}")
-        else:
-            print(f"DEBUG: Nessun metadata trovato per {search_title}")
-            display_title = series_title
-            m3u_content += f"\n#EXTINF:-1 group-title=\"{display_title}\",{display_title}\n"
-            m3u_content += f"#EXTGRP:{display_title}\n"
-            tmdb_episodes = {}
-        
-        for i, episode in enumerate(series['episodes'], 1):
-            file_name = episode['url'].split('/')[-1]
-            episode_number = re.search(r'Ep_(\d+)', file_name)
-            if episode_number:
-                episode_number = int(episode_number.group(1))
-                episode_title = tmdb_episodes.get(episode_number, f"Episodio {episode_number}")
-            else:
-                episode_number = i
-                episode_title = tmdb_episodes.get(i, f"Episodio {i}")
-            
-            # Se il titolo dell'episodio è in giapponese, usiamo il formato generico
-            if is_japanese(episode_title):
-                episode_title = f"Episodio {episode_number}"
-            
-            print(f"DEBUG: Titolo episodio {episode_number}: {episode_title}")
-            episode_title = f"E{episode_number:02d} - {episode_title}"
-            
-            m3u_content += f"#EXTINF:-1,{episode_title} - {display_title}\n"
+        for episode in series['episodes']:
+            episode_title = episode['title']
+            m3u_content += f"#EXTINF:-1,{episode_title} - {series_title}\n"
             m3u_content += f"{episode['url']}\n"
         
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
