@@ -184,10 +184,6 @@
 
             <div v-if="episodes.length" ref="episodesSection" class="mb-8">
                 <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
-                <div class="mb-4">
-                    <input v-model="newTitle" class="input p-2 mr-2" placeholder="Nuovo titolo per la ricerca">
-                    <button @click="renameTitle" class="btn btn-secondary text-white p-2">Rinomina per la ricerca</button>
-                </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                     <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode.url)">
                         <span class="text-primary" v-text="episode.title"></span>
@@ -225,8 +221,12 @@
                     <li v-for="(item, index) in playlist" :key="index" class="playlist-item flex justify-between items-center mb-2">
                         <span v-text="item.title + ' - ' + item.episodes.length + ' episodi'"></span>
                         <div>
-                            <input v-model="item.newTitle" class="input p-1 mr-2 text-sm" placeholder="Nuovo titolo">
-                            <button @click="renameSeries(index)" class="btn btn-secondary text-white p-1 text-sm">Rinomina</button>
+                            <button @click="startRenaming(index)" v-if="!item.isRenaming" class="btn btn-secondary text-white p-1 text-sm">Rinomina</button>
+                            <div v-else class="flex items-center">
+                                <input v-model="item.newTitle" class="input p-1 mr-2 text-sm" placeholder="Nuovo titolo">
+                                <button @click="renameSeries(index)" class="btn btn-secondary text-white p-1 text-sm">Salva</button>
+                                <button @click="cancelRenaming(index)" class="btn btn-secondary text-white p-1 text-sm ml-2">Annulla</button>
+                            </div>
                         </div>
                     </li>
                 </ul>
@@ -383,6 +383,16 @@
                         alert('Seleziona una serie e inserisci un nuovo titolo');
                     }
                 },
+                startRenaming(index) {
+                    this.$set(this.playlist[index], 'isRenaming', true);
+                    this.$set(this.playlist[index], 'newTitle', this.playlist[index].title);
+                },
+
+                cancelRenaming(index) {
+                    this.$set(this.playlist[index], 'isRenaming', false);
+                    this.$set(this.playlist[index], 'newTitle', '');
+                },
+
                 async renameSeries(index) {
                     const item = this.playlist[index];
                     if (item.newTitle && item.newTitle !== item.title) {
@@ -406,6 +416,7 @@
                             item.title = oldTitle;
                         }
                     }
+                    item.isRenaming = false;
                 },
             }
         });
