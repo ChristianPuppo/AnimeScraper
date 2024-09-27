@@ -272,16 +272,16 @@ def save_playlist():
                 episode_title = tmdb_episodes.get(episode_number, f"Episodio {episode_number}")
             else:
                 episode_number = i
-                episode_title = f"Episodio {i}"
+                episode_title = tmdb_episodes.get(i, f"Episodio {i}")
             
             # Se il titolo dell'episodio è in giapponese, usiamo il formato generico
             if is_japanese(episode_title):
                 episode_title = f"Episodio {episode_number}"
             
             print(f"DEBUG: Titolo episodio {episode_number}: {episode_title}")
-            episode_title = f"E{episode_number:02d} - {episode_title} - {display_title}"
+            episode_title = f"E{episode_number:02d} - {episode_title}"
             
-            m3u_content += f"#EXTINF:-1,{episode_title}\n"
+            m3u_content += f"#EXTINF:-1,{episode_title} - {display_title}\n"
             m3u_content += f"{episode['url']}\n"
         
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
