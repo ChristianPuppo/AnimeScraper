@@ -125,13 +125,12 @@ def get_series_metadata(title):
         
         search = tv.search(search_title)
         if not search:
-            # Se non trova risultati, prova a cercare titoli simili
-            search = tv.search(search_title[:len(search_title)//2])  # Cerca usando la prima metà del titolo
+            print(f"DEBUG: Nessun risultato trovato per '{search_title}', provo con la prima metà del titolo")
+            search = tv.search(search_title[:len(search_title)//2])
         
         if search:
-            # Trova la corrispondenza migliore
             best_match = max(search, key=lambda x: fuzz.ratio(x.name.lower(), search_title.lower()))
-            print(f"DEBUG: Serie trovata su TMDb: {best_match.name}")
+            print(f"DEBUG: Serie trovata su TMDb: {best_match.name} (ID: {best_match.id})")
             details = tv.details(best_match.id)
             seasons = details.seasons
             episodes = []
@@ -139,8 +138,8 @@ def get_series_metadata(title):
                 print(f"DEBUG: Recuperando dettagli per la stagione {s.season_number}")
                 season_episodes = Episode().get_episodes(best_match.id, s.season_number)
                 for ep in season_episodes:
-                    print(f"DEBUG: Episodio {ep.episode_number}: {ep.name}")
                     episode_name = ep.name if ep.name else f"Episodio {ep.episode_number}"
+                    print(f"DEBUG: Episodio {ep.episode_number}: {episode_name}")
                     episodes.append({
                         'season_number': s.season_number,
                         'episode_number': ep.episode_number,
@@ -209,20 +208,25 @@ def save_playlist():
     
     for series in playlist:
         series_title = series['title']
+        print(f"DEBUG: Elaborazione serie: {series_title}")
         metadata = get_series_metadata(series_title)
         
         if metadata and 'episodes' in metadata:
             tmdb_episodes = {ep['episode_number']: ep['name'] for ep in metadata['episodes']}
+            print(f"DEBUG: Episodi trovati su TMDb per {series_title}: {tmdb_episodes}")
         else:
             tmdb_episodes = {}
+            print(f"DEBUG: Nessun episodio trovato su TMDb per {series_title}")
         
         for i, episode in enumerate(series['episodes'], 1):
             episode_number = i
             episode_title = tmdb_episodes.get(episode_number)
             
             if episode_title:
+                print(f"DEBUG: Usando titolo TMDb per episodio {episode_number}: {episode_title}")
                 m3u_content += f"#EXTINF:-1,{episode_title} - {series_title}\n"
             else:
+                print(f"DEBUG: Usando titolo generico per episodio {episode_number}")
                 m3u_content += f"#EXTINF:-1,Episodio {episode_number} - {series_title}\n"
             
             m3u_content += f"{episode['url']}\n"
