@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session
+from flask_sqlalchemy import SQLAlchemy
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -12,6 +13,19 @@ import json
 import uuid
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///playlists.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+class SharedPlaylist(db.Model):
+    id = db.Column(db.String(36), primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    playlist = db.Column(db.Text, nullable=False)
+
+    def __init__(self, id, name, playlist):
+        self.id = id
+        self.name = name
+        self.playlist = json.dumps(playlist)
 
 BASE_URL = "https://www.animesaturn.mx"
 
@@ -27,9 +41,6 @@ season = Season()
 
 # Dizionario per memorizzare i titoli rinominati
 renamed_titles = {}
-
-# Aggiungi questo dizionario per memorizzare le playlist condivise
-shared_playlists = {}
 
 app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
 
@@ -257,18 +268,22 @@ def share_playlist():
     playlist = request.json['playlist']
     playlist_name = request.json.get('playlist_name', 'Playlist Anime')
     share_id = str(uuid.uuid4())
-    shared_playlists[share_id] = {'playlist': playlist, 'name': playlist_name}
+    
+    new_playlist = SharedPlaylist(id=share_id, name=playlist_name, playlist=playlist)
+    db.session.add(new_playlist)
+    db.session.commit()
+    
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     return jsonify({'share_url': share_url, 'share_id': share_id})
 
 @app.route('/download_shared_playlist/<share_id>')
 def download_shared_playlist(share_id):
-    if share_id not in shared_playlists:
+    shared_playlist = SharedPlaylist.query.get(share_id)
+    if not shared_playlist:
         return "Playlist non trovata", 404
     
-    shared_data = shared_playlists[share_id]
-    playlist = shared_data['playlist']
-    playlist_name = shared_data['name']
+    playlist = json.loads(shared_playlist.playlist)
+    playlist_name = shared_playlist.name
     
     total_episodes = sum(len(series['episodes']) for series in playlist)
     total_series = len(playlist)
@@ -285,12 +300,12 @@ def download_shared_playlist(share_id):
 
 @app.route('/generate_m3u/<share_id>')
 def generate_m3u(share_id):
-    if share_id not in shared_playlists:
+    shared_playlist = SharedPlaylist.query.get(share_id)
+    if not shared_playlist:
         return "Playlist non trovata", 404
     
-    shared_data = shared_playlists[share_id]
-    playlist = shared_data['playlist']
-    playlist_name = shared_data['name']
+    playlist = json.loads(shared_playlist.playlist)
+    playlist_name = shared_playlist.name
     
     m3u_content = "#EXTM3U\n"
     for series in playlist:
@@ -329,11 +344,22 @@ def update_shared_playlist():
 
     if not share_id:
         share_id = str(uuid.uuid4())
+        new_playlist = SharedPlaylist(id=share_id, name=playlist_name, playlist=playlist)
+        db.session.add(new_playlist)
+    else:
+        shared_playlist = SharedPlaylist.query.get(share_id)
+        if shared_playlist:
+            shared_playlist.name = playlist_name
+            shared_playlist.playlist = json.dumps(playlist)
+        else:
+            return jsonify({'error': 'Playlist non trovata'}), 404
 
-    shared_playlists[share_id] = {'playlist': playlist, 'name': playlist_name}
+    db.session.commit()
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     
     return jsonify({'share_url': share_url, 'share_id': share_id})
 
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
