@@ -209,7 +209,7 @@
                     <div v-else class="progress-bar">
                         <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
                         <div class="episode-count">{{ progress }}%</div>
-                        <div class="estimated-time" v-if="estimatedTime > 0">Tempo stimato: {{ formatTime(estimatedTime) }}</div>
+                        <div class="estimated-time" v-if="estimatedTime > 0">Tempo stimato: {{ estimatedTime | formatTime }}</div>
                     </div>
                 </div>
             </div>
@@ -570,6 +570,13 @@
             watch: {
                 // Rimuoviamo il watch su playlistName per evitare aggiornamenti automatici
                 // playlistName: function() { ... }
+            },
+            filters: {
+                formatTime(seconds) {
+                    const minutes = Math.floor(seconds / 60);
+                    const remainingSeconds = Math.round(seconds % 60);
+                    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+                }
             }
         });
     </script>
