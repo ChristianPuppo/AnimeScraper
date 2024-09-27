@@ -444,14 +444,24 @@
                         alert('Aggiungi almeno una serie alla playlist prima di condividerla.');
                         return;
                     }
-                    const response = await axios.post('/update_shared_playlist', {
-                        playlist: this.playlist,
-                        playlist_name: this.playlistName,
-                        share_id: this.shareId
-                    });
-                    this.shareUrl = response.data.share_url;
-                    this.shareId = response.data.share_id;
-                    this.isShared = true;  // Mostra la sezione di condivisione
+                    console.log("DEBUG: Inizio condivisione playlist");
+                    try {
+                        const response = await axios.post('/share_playlist', {
+                            playlist: this.playlist,
+                            playlist_name: this.playlistName
+                        });
+                        console.log("DEBUG: Risposta dal server:", response.data);
+                        this.shareUrl = response.data.share_url;
+                        this.shareId = response.data.share_id;
+                        this.isShared = true;  // Mostra la sezione di condivisione
+                        console.log("DEBUG: Playlist condivisa con successo", response.data);
+                    } catch (error) {
+                        console.error("DEBUG: Errore nella condivisione della playlist", error);
+                        if (error.response) {
+                            console.error("DEBUG: Risposta del server:", error.response.data);
+                        }
+                        alert('Si è verificato un errore durante la condivisione della playlist. Riprova.');
+                    }
                 },
                 
                 copyShareUrl() {
@@ -511,13 +521,19 @@
 
                 async updateSharedPlaylist() {
                     if (this.isShared) {  // Aggiorna solo se la playlist è già stata condivisa
-                        const response = await axios.post('/update_shared_playlist', {
-                            playlist: this.playlist,
-                            playlist_name: this.playlistName,
-                            share_id: this.shareId
-                        });
-                        this.shareUrl = response.data.share_url;
-                        this.shareId = response.data.share_id;
+                        try {
+                            const response = await axios.post('/update_shared_playlist', {
+                                playlist: this.playlist,
+                                playlist_name: this.playlistName,
+                                share_id: this.shareId
+                            });
+                            this.shareUrl = response.data.share_url;
+                            this.shareId = response.data.share_id;
+                            console.log("DEBUG: Playlist aggiornata con successo", response.data);
+                        } catch (error) {
+                            console.error("DEBUG: Errore nell'aggiornamento della playlist", error);
+                            alert('Si è verificato un errore durante l\'aggiornamento della playlist. Riprova.');
+                        }
                     }
                 },
 

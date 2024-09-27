@@ -265,16 +265,32 @@ def save_playlist():
 
 @app.route('/share_playlist', methods=['POST'])
 def share_playlist():
-    playlist = request.json['playlist']
-    playlist_name = request.json.get('playlist_name', 'Playlist Anime')
-    share_id = str(uuid.uuid4())
-    
-    new_playlist = SharedPlaylist(id=share_id, name=playlist_name, playlist=playlist)
-    db.session.add(new_playlist)
-    db.session.commit()
-    
-    share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
-    return jsonify({'share_url': share_url, 'share_id': share_id})
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Dati JSON mancanti"}), 400
+        
+        playlist = data.get('playlist')
+        if not playlist:
+            return jsonify({"error": "Playlist mancante"}), 400
+        
+        playlist_name = data.get('playlist_name', 'Playlist Anime')
+        share_id = str(uuid.uuid4())
+        
+        print(f"DEBUG: Creazione nuova playlist condivisa - ID: {share_id}, Nome: {playlist_name}")
+        
+        new_playlist = SharedPlaylist(id=share_id, name=playlist_name, playlist=playlist)
+        db.session.add(new_playlist)
+        db.session.commit()
+        
+        share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
+        print(f"DEBUG: Playlist condivisa creata con successo - URL: {share_url}")
+        
+        return jsonify({'share_url': share_url, 'share_id': share_id})
+    except Exception as e:
+        print(f"DEBUG: Errore durante la condivisione della playlist - {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": "Si è verificato un errore durante la condivisione della playlist"}), 500
 
 @app.route('/download_shared_playlist/<share_id>')
 def download_shared_playlist(share_id):
