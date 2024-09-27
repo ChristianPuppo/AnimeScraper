@@ -218,14 +218,16 @@
             <div v-if="playlist.length" class="list-container">
                 <h2 class="text-2xl font-semibold mb-3 text-primary">Lista delle serie:</h2>
                 <ul>
-                    <li v-for="(item, index) in playlist" :key="index" class="playlist-item flex justify-between items-center mb-2">
-                        <span v-text="item.title + ' - ' + item.episodes.length + ' episodi'"></span>
-                        <div>
-                            <button @click="startRenaming(index)" v-if="!item.isRenaming" class="btn btn-secondary text-white p-1 text-sm">Rinomina</button>
-                            <div v-else class="flex items-center">
-                                <input v-model="item.newTitle" class="input p-1 mr-2 text-sm" placeholder="Nuovo titolo">
-                                <button @click="renameSeries(index)" class="btn btn-secondary text-white p-1 text-sm">Salva</button>
-                                <button @click="cancelRenaming(index)" class="btn btn-secondary text-white p-1 text-sm ml-2">Annulla</button>
+                    <li v-for="(item, index) in playlist" :key="index" class="playlist-item mb-2">
+                        <div v-if="!item.isRenaming" class="flex justify-between items-center">
+                            <span v-text="item.title + ' - ' + item.episodes.length + ' episodi'"></span>
+                            <button @click="startRenaming(index)" class="btn btn-secondary text-white p-1 text-sm">Rinomina</button>
+                        </div>
+                        <div v-else class="flex flex-col">
+                            <input v-model="item.newTitle" class="input p-2 mb-2 w-full" placeholder="Nuovo titolo">
+                            <div class="flex justify-end">
+                                <button @click="renameSeries(index)" class="btn btn-secondary text-white p-2 text-sm mr-2">Salva</button>
+                                <button @click="cancelRenaming(index)" class="btn btn-secondary text-white p-2 text-sm">Annulla</button>
                             </div>
                         </div>
                     </li>
