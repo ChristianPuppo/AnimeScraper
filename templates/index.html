@@ -222,8 +222,12 @@
             <div v-if="playlist.length" class="list-container">
                 <h2 class="text-2xl font-semibold mb-3 text-primary">Lista delle serie:</h2>
                 <ul>
-                    <li v-for="item in playlist" :key="item.title" class="playlist-item">
+                    <li v-for="(item, index) in playlist" :key="index" class="playlist-item flex justify-between items-center mb-2">
                         <span v-text="item.title + ' - ' + item.episodes.length + ' episodi'"></span>
+                        <div>
+                            <input v-model="item.newTitle" class="input p-1 mr-2 text-sm" placeholder="Nuovo titolo">
+                            <button @click="renameSeries(index)" class="btn btn-secondary text-white p-1 text-sm">Rinomina</button>
+                        </div>
                     </li>
                 </ul>
                 <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4 full-width-btn">Scarica la lista</button>
@@ -377,6 +381,30 @@
                         }
                     } else {
                         alert('Seleziona una serie e inserisci un nuovo titolo');
+                    }
+                },
+                async renameSeries(index) {
+                    const item = this.playlist[index];
+                    if (item.newTitle && item.newTitle !== item.title) {
+                        const oldTitle = item.title;
+                        item.title = item.newTitle;
+                        item.newTitle = '';
+                        
+                        // Aggiorna il titolo per la ricerca TMDb
+                        const response = await axios.post('/rename_title', {
+                            original_title: oldTitle,
+                            new_title: item.title
+                        });
+                        
+                        if (response.data.message) {
+                            console.log('Titolo rinominato con successo');
+                            // Aggiorna la playlist
+                            this.$set(this.playlist, index, item);
+                        } else {
+                            console.error('Errore nel rinominare il titolo');
+                            // Ripristina il vecchio titolo in caso di errore
+                            item.title = oldTitle;
+                        }
                     }
                 },
             }

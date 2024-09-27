@@ -230,11 +230,13 @@ def save_playlist():
     
     for series in playlist:
         series_title = series['title']
-        print(f"DEBUG: Cercando metadata per la serie: {series_title}")
-        metadata = get_series_metadata(series_title)
+        # Usa il titolo rinominato se disponibile
+        search_title = renamed_titles.get(series_title, series_title)
+        print(f"DEBUG: Cercando metadata per la serie: {search_title}")
+        metadata = get_series_metadata(search_title)
         
         if metadata:
-            print(f"DEBUG: Metadata trovati per {series_title}")
+            print(f"DEBUG: Metadata trovati per {search_title}")
             italian_title = metadata['title']
             original_title = metadata['original_title']
             description = metadata.get('overview', '').replace('\n', ' ')
@@ -242,12 +244,8 @@ def save_playlist():
             year = metadata['first_air_date'][:4] if metadata.get('first_air_date') else ''
             genres = ', '.join(metadata.get('genres', []))
             
-            # Utilizziamo il titolo italiano se disponibile, altrimenti quello originale
-            # Se entrambi sono in giapponese (o non disponibili), usiamo il titolo dallo scraping o il titolo rinominato
-            if is_japanese(italian_title) and is_japanese(original_title):
-                display_title = renamed_titles.get(series_title, series_title)
-            else:
-                display_title = italian_title if not is_japanese(italian_title) else original_title
+            # Usa il titolo rinominato se disponibile, altrimenti usa la logica esistente
+            display_title = series_title
             
             m3u_content += f"\n#EXTINF:-1 group-title=\"{display_title}\" tvg-logo=\"{cover_image}\",{display_title} ({year})\n"
             m3u_content += f"#EXTGRP:{display_title}\n"
@@ -260,7 +258,7 @@ def save_playlist():
             tmdb_episodes = {ep.episode_number: ep.name for ep in metadata['episodes']}
             print(f"DEBUG: Episodi trovati su TMDb: {tmdb_episodes}")
         else:
-            print(f"DEBUG: Nessun metadata trovato per {series_title}")
+            print(f"DEBUG: Nessun metadata trovato per {search_title}")
             display_title = series_title
             m3u_content += f"\n#EXTINF:-1 group-title=\"{display_title}\",{display_title}\n"
             m3u_content += f"#EXTGRP:{display_title}\n"
