@@ -25,6 +25,17 @@ tmdb.language = 'it'
 tv = TV()
 season = Season()
 
+# Dizionario per memorizzare i titoli rinominati
+renamed_titles = {}
+
+@app.route('/rename_title', methods=['POST'])
+def rename_title():
+    data = request.json
+    original_title = data['original_title']
+    new_title = data['new_title']
+    renamed_titles[original_title] = new_title
+    return jsonify({"message": "Titolo rinominato con successo"})
+
 def search_anime(query):
     search_url = urljoin(BASE_URL, f"/animelist?search={query}")
     response = requests.get(search_url)
@@ -110,8 +121,10 @@ def extract_video_url(url):
 def get_series_metadata(title):
     try:
         print(f"DEBUG: Cercando serie su TMDb: {title}")
+        # Controlla se il titolo è stato rinominato
+        search_title = renamed_titles.get(title, title)
         # Rimuovi "(ITA)" e altri suffissi comuni dal titolo per la ricerca
-        search_title = re.sub(r'\s*(\(ITA\)|\(SUB ITA\)|\(TV\)|\(OAV\)|\(OVA\))\s*', '', title).strip()
+        search_title = re.sub(r'\s*(\(ITA\)|\(SUB ITA\)|\(TV\)|\(OAV\)|\(OVA\))\s*', '', search_title).strip()
         print(f"DEBUG: Titolo di ricerca modificato: {search_title}")
         
         # Lista di possibili varianti del titolo
@@ -230,9 +243,9 @@ def save_playlist():
             genres = ', '.join(metadata.get('genres', []))
             
             # Utilizziamo il titolo italiano se disponibile, altrimenti quello originale
-            # Se entrambi sono in giapponese (o non disponibili), usiamo il titolo dallo scraping
+            # Se entrambi sono in giapponese (o non disponibili), usiamo il titolo dallo scraping o il titolo rinominato
             if is_japanese(italian_title) and is_japanese(original_title):
-                display_title = series_title
+                display_title = renamed_titles.get(series_title, series_title)
             else:
                 display_title = italian_title if not is_japanese(italian_title) else original_title
             

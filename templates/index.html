@@ -184,6 +184,10 @@
 
             <div v-if="episodes.length" ref="episodesSection" class="mb-8">
                 <h2 class="text-2xl font-semibold mb-4 text-primary">Episodi disponibili:</h2>
+                <div class="mb-4">
+                    <input v-model="newTitle" class="input p-2 mr-2" placeholder="Nuovo titolo per la ricerca">
+                    <button @click="renameTitle" class="btn btn-secondary text-white p-2">Rinomina per la ricerca</button>
+                </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                     <div v-for="episode in episodes" :key="episode.url" class="card p-4" @click="getStreamingUrl(episode.url)">
                         <span class="text-primary" v-text="episode.title"></span>
@@ -241,7 +245,8 @@
                 playlist: [],
                 loading: false,
                 progress: 0,
-                selectedAnime: null  // Aggiungiamo questa nuova variabile
+                selectedAnime: null,  // Aggiungiamo questa nuova variabile
+                newTitle: '',
             },
             methods: {
                 async searchAnime() {
@@ -359,7 +364,21 @@
                 clearPlaylist() {
                     this.playlist = [];
                     console.log("Lista cancellata");
-                }
+                },
+                async renameTitle() {
+                    if (this.selectedAnime && this.newTitle) {
+                        const response = await axios.post('/rename_title', {
+                            original_title: this.selectedAnime.title,
+                            new_title: this.newTitle
+                        });
+                        if (response.data.message) {
+                            alert('Titolo rinominato con successo');
+                            this.newTitle = '';
+                        }
+                    } else {
+                        alert('Seleziona una serie e inserisci un nuovo titolo');
+                    }
+                },
             }
         });
     </script>
