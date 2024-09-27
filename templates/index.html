@@ -252,7 +252,10 @@
                         </div>
                     </li>
                 </ul>
-                <input v-model="playlistName" class="input p-2 mb-2 w-full" placeholder="Nome della playlist">
+                <div class="flex items-center mb-2">
+                    <input v-model="playlistName" class="input p-2 flex-grow" placeholder="Nome della playlist">
+                    <button @click="updatePlaylistName" class="btn btn-secondary text-white p-2 ml-2">Aggiorna</button>
+                </div>
                 
                 <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4 full-width-btn">Scarica la lista</button>
                 
@@ -517,13 +520,19 @@
                         this.shareId = response.data.share_id;
                     }
                 },
+
+                async updatePlaylistName() {
+                    if (this.playlist.length > 0) {
+                        await this.updateSharedPlaylist();
+                        alert('Nome della playlist aggiornato con successo!');
+                    } else {
+                        alert('Aggiungi almeno una serie alla playlist prima di aggiornare il nome.');
+                    }
+                },
             },
             watch: {
-                playlistName: function() {
-                    if (this.playlist.length > 0 && this.isShared) {
-                        this.updateSharedPlaylist();
-                    }
-                }
+                // Rimuoviamo il watch su playlistName per evitare aggiornamenti automatici
+                // playlistName: function() { ... }
             }
         });
     </script>
