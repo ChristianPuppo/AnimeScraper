@@ -10,7 +10,6 @@ from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
 import json
 import uuid
-import datetime
 
 app = Flask(__name__)
 
@@ -33,20 +32,6 @@ renamed_titles = {}
 shared_playlists = {}
 
 app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
-
-def add_to_history(playlist_name, share_id):
-    if 'playlist_history' not in session:
-        session['playlist_history'] = []
-    
-    history_entry = {
-        'name': playlist_name,
-        'date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'share_id': share_id
-    }
-    
-    session['playlist_history'].insert(0, history_entry)
-    session['playlist_history'] = session['playlist_history'][:10]  # Mantieni solo le ultime 10 playlist
-    session.modified = True
 
 @app.route('/rename_title', methods=['POST'])
 def rename_title():
@@ -188,8 +173,7 @@ def get_series_metadata(title):
 
 @app.route('/')
 def index():
-    playlist_history = session.get('playlist_history', [])
-    return render_template('index.html', playlist_history=playlist_history)
+    return render_template('index.html')
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -262,8 +246,6 @@ def save_playlist():
     
     print(f"DEBUG: Contenuto M3U generato:\n{m3u_content}")
     
-    add_to_history(playlist_name)
-    
     return Response(
         m3u_content,
         mimetype='text/plain',
@@ -278,27 +260,6 @@ def share_playlist():
     shared_playlists[share_id] = {'playlist': playlist, 'name': playlist_name}
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     return jsonify({'share_url': share_url, 'share_id': share_id})
-
-@app.route('/update_shared_playlist', methods=['POST'])
-def update_shared_playlist():
-    playlist = request.json['playlist']
-    playlist_name = request.json['playlist_name']
-    share_id = request.json.get('share_id')
-
-    if not share_id:
-        share_id = str(uuid.uuid4())
-
-    shared_playlists[share_id] = {'playlist': playlist, 'name': playlist_name}
-    share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
-    
-    return jsonify({'share_url': share_url, 'share_id': share_id})
-
-@app.route('/add_share_id_to_history', methods=['POST'])
-def add_share_id_to_history():
-    playlist_name = request.json['playlist_name']
-    share_id = request.json['share_id']
-    add_to_history(playlist_name, share_id)
-    return jsonify({'message': 'Share ID added to history successfully'})
 
 @app.route('/download_shared_playlist/<share_id>')
 def download_shared_playlist(share_id):
@@ -359,11 +320,6 @@ def generate_m3u(share_id):
         mimetype='text/plain',
         headers={'Content-Disposition': f'attachment; filename="{playlist_name}.m3u"'}
     )
-
-@app.route('/get_playlist_history', methods=['GET'])
-def get_playlist_history():
-    playlist_history = session.get('playlist_history', [])
-    return render_template('playlist_history.html', playlist_history=playlist_history)
 
 if __name__ == '__main__':
     app.run(debug=True)
