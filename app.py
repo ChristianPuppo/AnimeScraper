@@ -156,6 +156,7 @@ def get_series_metadata(title):
                     ratio_original = fuzz.ratio(result.name.lower(), search_title.lower())
                     ratio_italian = fuzz.ratio(result.original_name.lower(), search_title.lower())
                     ratio = max(ratio_original, ratio_italian)
+                    print(f"DEBUG: Confronto - {result.name} (Somiglianza: {ratio}%)")
                     if ratio > highest_ratio:
                         highest_ratio = ratio
                         best_match = result
@@ -168,7 +169,13 @@ def get_series_metadata(title):
             for s in seasons:
                 print(f"DEBUG: Recuperando dettagli per la stagione {s.season_number}")
                 season_details = season.details(best_match.id, s.season_number)
-                episodes.extend(season_details.episodes)
+                for ep in season_details.episodes:
+                    print(f"DEBUG: Episodio {ep.episode_number}: {ep.name}")
+                    episodes.append({
+                        'season_number': s.season_number,
+                        'episode_number': ep.episode_number,
+                        'name': ep.name
+                    })
             print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
             return {
                 'id': best_match.id,
@@ -255,13 +262,13 @@ def save_playlist():
             if playlist_title == "Playlist Anime":
                 playlist_title = f"Playlist {display_title}"
 
-            tmdb_episodes = {ep.episode_number: ep.name for ep in metadata['episodes']}
+            tmdb_episodes = {ep['episode_number']: ep['name'] for ep in metadata['episodes']}
             print(f"DEBUG: Episodi trovati su TMDb: {tmdb_episodes}")
         else:
             print(f"DEBUG: Nessun metadata trovato per {search_title}")
             display_title = series_title
             m3u_content += f"\n#EXTINF:-1 group-title=\"{display_title}\",{display_title}\n"
-            tmdb_episodes = {ep['episode_number']: ep['name'] for ep in metadata['episodes']}
+            m3u_content += f"#EXTGRP:{display_title}\n"
             tmdb_episodes = {}
         
         for i, episode in enumerate(series['episodes'], 1):
