@@ -273,7 +273,7 @@
                     {% for item in playlist_history %}
                     <li class="mb-2">
                         {{ item.name }} - {{ item.date }}
-                        <button @click="reloadPlaylist('{{ item.name }}', {{ item.playlist|tojson }})" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
+                        <button @click="reloadPlaylist('{{ item.name }}', {{ item.playlist|tojson|safe }})" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
                     </li>
                     {% endfor %}
                 </ul>
@@ -282,6 +282,13 @@
     </div>
 
     <script>
+        // Aggiungi questo prima della definizione del componente Vue
+        Vue.config.errorHandler = function (err, vm, info) {
+            console.error('Errore Vue:', err);
+            alert('Si è verificato un errore. Per favore, ricarica la pagina e riprova.');
+        };
+
+        // Poi, nel componente Vue
         new Vue({
             el: '#app',
             data: {
@@ -513,13 +520,23 @@
                 },
 
                 reloadPlaylist(name, playlist) {
-                    this.playlist = playlist;
+                    this.playlist = playlist.map(series => ({
+                        ...series,
+                        episodes: series.episodes.map(ep => ({
+                            ...ep,
+                            title: ep.title || `Episodio ${series.episodes.indexOf(ep) + 1}`
+                        }))
+                    }));
                     this.playlistName = name;
                     console.log("DEBUG: Playlist ricaricata:", name);
                 },
             },
             mounted() {
                 this.getPlaylistHistory();
+            },
+            errorCaptured(err, vm, info) {
+                console.error('Errore catturato in Vue:', err);
+                return false; // per evitare la propagazione dell'errore
             }
         });
     </script>
