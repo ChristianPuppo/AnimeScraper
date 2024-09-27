@@ -3,18 +3,6 @@
     {% for item in playlist_history %}
     <li class="mb-2">
         {{ item.name }} - {{ item.date }}
-        <button onclick="reloadPlaylist('{{ item.name }}', '{{ item.playlist|tojson|safe }}')" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
     </li>
     {% endfor %}
 </ul>
-
-<script>
-function reloadPlaylist(name, playlistString) {
-    // Questa funzione verrà chiamata dal genitore (la pagina principale)
-    window.parent.postMessage({
-        type: 'reloadPlaylist',
-        name: name,
-        playlist: JSON.parse(playlistString)
-    }, '*');
-}
-</script>

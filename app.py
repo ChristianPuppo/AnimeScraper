@@ -34,14 +34,13 @@ shared_playlists = {}
 
 app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
 
-def add_to_history(playlist_name, playlist):
+def add_to_history(playlist_name):
     if 'playlist_history' not in session:
         session['playlist_history'] = []
     
     history_entry = {
         'name': playlist_name,
-        'date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'playlist': [{'title': series['title'], 'episodes': [{'url': ep['url']} for ep in series['episodes']]} for series in playlist]
+        'date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     
     session['playlist_history'].insert(0, history_entry)
@@ -189,10 +188,6 @@ def get_series_metadata(title):
 @app.route('/')
 def index():
     playlist_history = session.get('playlist_history', [])
-    # Assicuriamoci che la playlist sia serializzabile
-    for item in playlist_history:
-        if 'playlist' in item:
-            item['playlist'] = json.dumps(item['playlist'])
     return render_template('index.html', playlist_history=playlist_history)
 
 @app.route('/search', methods=['POST'])
@@ -266,7 +261,7 @@ def save_playlist():
     
     print(f"DEBUG: Contenuto M3U generato:\n{m3u_content}")
     
-    add_to_history(playlist_name, playlist)
+    add_to_history(playlist_name)
     
     return Response(
         m3u_content,
@@ -286,7 +281,7 @@ def share_playlist():
 @app.route('/download_shared_playlist/<share_id>')
 def download_shared_playlist(share_id):
     if share_id not in shared_playlists:
-        return render_template('shared_playlist.html', error="Playlist non trovata")
+        return "Playlist non trovata", 404
     
     shared_data = shared_playlists[share_id]
     playlist = shared_data['playlist']
@@ -321,16 +316,15 @@ def download_shared_playlist(share_id):
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
     
     print(f"DEBUG: Contenuto M3U generato:\n{m3u_content}")
-    
-    return render_template('shared_playlist.html', playlist=playlist, playlist_name=playlist_name, m3u_content=m3u_content)
+    return Response(
+        m3u_content,
+        mimetype='text/plain',
+        headers={'Content-Disposition': f'attachment; filename="{playlist_name}.m3u"'}
+    )
 
 @app.route('/get_playlist_history', methods=['GET'])
 def get_playlist_history():
     playlist_history = session.get('playlist_history', [])
-    # Assicuriamoci che la playlist sia serializzabile
-    for item in playlist_history:
-        if 'playlist' in item and isinstance(item['playlist'], str):
-            item['playlist'] = json.loads(item['playlist'])
     return render_template('playlist_history.html', playlist_history=playlist_history)
 
 if __name__ == '__main__':

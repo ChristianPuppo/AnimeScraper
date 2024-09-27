@@ -273,7 +273,6 @@
                     {% for item in playlist_history %}
                     <li class="mb-2">
                         {{ item.name }} - {{ item.date }}
-                        <button onclick="reloadPlaylist('{{ item.name }}', '{{ item.playlist|tojson|safe }}')" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
                     </li>
                     {% endfor %}
                 </ul>
@@ -282,13 +281,6 @@
     </div>
 
     <script>
-        // Aggiungi questo prima della definizione del componente Vue
-        Vue.config.errorHandler = function (err, vm, info) {
-            console.error('Errore Vue:', err, info);
-            alert(`Si è verificato un errore: ${err.message}. Per favore, ricarica la pagina e riprova.`);
-        };
-
-        // Poi, nel componente Vue
         new Vue({
             el: '#app',
             data: {
@@ -518,31 +510,9 @@
                     const response = await axios.get('/get_playlist_history');
                     document.getElementById('playlist-history').innerHTML = response.data;
                 },
-
-                reloadPlaylist(name, playlist) {
-                    this.playlist = playlist.map(series => ({
-                        ...series,
-                        episodes: series.episodes.map(ep => ({
-                            ...ep,
-                            title: ep.title || `Episodio ${series.episodes.indexOf(ep) + 1}`
-                        }))
-                    }));
-                    this.playlistName = name;
-                    console.log("DEBUG: Playlist ricaricata:", name);
-                },
             },
             mounted() {
                 this.getPlaylistHistory();
-                window.addEventListener('message', (event) => {
-                    if (event.data.type === 'reloadPlaylist') {
-                        this.reloadPlaylist(event.data.name, event.data.playlist);
-                    }
-                });
-            },
-            errorCaptured(err, vm, info) {
-                console.error('Errore catturato in Vue:', err, info);
-                alert(`Si è verificato un errore: ${err.message}. L'applicazione potrebbe non funzionare correttamente.`);
-                return false; // per evitare la propagazione dell'errore
             }
         });
     </script>
