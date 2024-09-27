@@ -81,6 +81,27 @@
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
         }
+        .suggestions-container {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            background-color: white;
+            border: 1px solid #D1D1D6;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .suggestion-item {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background-color: #F2F2F7;
+        }
         .list-container {
             margin-top: 2rem;
             padding: 1rem;
@@ -170,6 +191,7 @@
                 position: relative;
                 display: flex;
                 flex-direction: column;
+                margin-bottom: 2rem;
             }
             .search-input {
                 width: 100%;
@@ -183,6 +205,10 @@
                 height: 100%;
                 border-top-left-radius: 0;
                 border-bottom-left-radius: 0;
+            }
+            .suggestions-container {
+                position: absolute;
+                width: 100%;
             }
             .playlist-item {
                 font-size: 0.9rem;
@@ -219,8 +245,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </button>
-                <div v-if="suggestions.length" class="absolute z-10 bg-white border rounded-lg mt-1 w-full shadow-lg">
-                    <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="p-3 hover:bg-gray-100 cursor-pointer">
+                <div v-if="suggestions.length" class="suggestions-container">
+                    <div v-for="suggestion in suggestions" :key="suggestion.url" @click="selectSuggestion(suggestion)" class="suggestion-item">
                         <span v-text="suggestion.title"></span>
                     </div>
                 </div>
