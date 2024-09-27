@@ -113,27 +113,41 @@
             height: 48px;
         }
         .progress-bar {
+            position: relative;
             width: 100%;
             height: 48px;
             background-color: #e0e0e0;
-            overflow: hidden;
             border-radius: 5px;
-            position: relative;
+            overflow: hidden;
         }
         .progress-bar-inner {
             height: 100%;
             background-color: #007AFF;
             transition: width 0.3s ease;
-            border-radius: 5px;
         }
-        .episode-count {
+        .progress-info {
             position: absolute;
-            top: 70%;
+            top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
             color: white;
-            font-size: 0.8em;
+            font-size: 0.9em;
             z-index: 1;
+        }
+        .episode-count {
+            margin-right: 10px;
+        }
+        .estimated-time {
+            margin-left: 10px;
+        }
+        .debug-info {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
         }
         .playlist-item {
             background-color: #f0f0f0;
@@ -208,9 +222,11 @@
                     </div>
                     <div v-else class="progress-bar">
                         <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
-                        <div class="episode-count">{{ progress }}%</div>
-                        <div class="estimated-time" v-if="estimatedTime > 0">
-                            ETA: {% raw %}{{ formatTime(estimatedTime) }}{% endraw %}
+                        <div class="progress-info">
+                            <span class="episode-count">{{ progress }}%</span>
+                            <span class="estimated-time" v-if="estimatedTime > 0">
+                                ETA: {% raw %}{{ formatTime(estimatedTime) }}{% endraw %}
+                            </span>
                         </div>
                         <div class="debug-info">
                             Debug: Progress: {{ progress }}, EstimatedTime: {{ estimatedTime }}, Formatted: {% raw %}{{ formatTime(estimatedTime) }}{% endraw %}
