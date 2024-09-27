@@ -189,6 +189,10 @@ def get_series_metadata(title):
 @app.route('/')
 def index():
     playlist_history = session.get('playlist_history', [])
+    # Assicuriamoci che la playlist sia serializzabile
+    for item in playlist_history:
+        if 'playlist' in item:
+            item['playlist'] = json.dumps(item['playlist'])
     return render_template('index.html', playlist_history=playlist_history)
 
 @app.route('/search', methods=['POST'])

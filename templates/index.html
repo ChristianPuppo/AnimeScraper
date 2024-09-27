@@ -273,7 +273,7 @@
                     {% for item in playlist_history %}
                     <li class="mb-2">
                         {{ item.name }} - {{ item.date }}
-                        <button @click="reloadPlaylist('{{ item.name }}', {{ item.playlist|tojson|safe }})" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
+                        <button @click="reloadPlaylist('{{ item.name }}', {{ item.playlist|safe }})" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
                     </li>
                     {% endfor %}
                 </ul>
@@ -284,8 +284,8 @@
     <script>
         // Aggiungi questo prima della definizione del componente Vue
         Vue.config.errorHandler = function (err, vm, info) {
-            console.error('Errore Vue:', err);
-            alert('Si è verificato un errore. Per favore, ricarica la pagina e riprova.');
+            console.error('Errore Vue:', err, info);
+            alert(`Si è verificato un errore: ${err.message}. Per favore, ricarica la pagina e riprova.`);
         };
 
         // Poi, nel componente Vue
@@ -519,7 +519,8 @@
                     document.getElementById('playlist-history').innerHTML = response.data;
                 },
 
-                reloadPlaylist(name, playlist) {
+                reloadPlaylist(name, playlistString) {
+                    const playlist = JSON.parse(playlistString);
                     this.playlist = playlist.map(series => ({
                         ...series,
                         episodes: series.episodes.map(ep => ({
@@ -535,7 +536,8 @@
                 this.getPlaylistHistory();
             },
             errorCaptured(err, vm, info) {
-                console.error('Errore catturato in Vue:', err);
+                console.error('Errore catturato in Vue:', err, info);
+                alert(`Si è verificato un errore: ${err.message}. L'applicazione potrebbe non funzionare correttamente.`);
                 return false; // per evitare la propagazione dell'errore
             }
         });
