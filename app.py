@@ -187,7 +187,8 @@ def get_series_metadata(title):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    playlist_history = session.get('playlist_history', [])
+    return render_template('index.html', playlist_history=playlist_history)
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -323,7 +324,8 @@ def download_shared_playlist(share_id):
 
 @app.route('/get_playlist_history', methods=['GET'])
 def get_playlist_history():
-    return jsonify(session.get('playlist_history', []))
+    playlist_history = session.get('playlist_history', [])
+    return render_template('playlist_history.html', playlist_history=playlist_history)
 
 if __name__ == '__main__':
     app.run(debug=True)
