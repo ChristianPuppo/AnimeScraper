@@ -276,7 +276,9 @@
             },
             methods: {
                 async searchAnime() {
+                    console.log("DEBUG: Ricerca anime iniziata con query:", this.query);
                     const response = await axios.post('/search', new URLSearchParams({ query: this.query }));
+                    console.log("DEBUG: Risultati ricerca anime:", response.data);
                     this.animeResults = response.data;
                     this.episodes = [];
                     this.videoUrl = '';
@@ -284,18 +286,22 @@
                     this.suggestions = [];
                 },
                 async getEpisodes(animeUrl) {
+                    console.log("DEBUG: Richiesta episodi per:", animeUrl);
                     const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
+                    console.log("DEBUG: Episodi ricevuti:", response.data);
                     this.episodes = response.data;
                     this.videoUrl = '';
                     this.streamingUrl = '';
-                    // Salviamo l'anime selezionato
                     this.selectedAnime = this.animeResults.find(anime => anime.url === animeUrl);
+                    console.log("DEBUG: Anime selezionato:", this.selectedAnime);
                     this.$nextTick(() => {
                         this.scrollTo('episodesSection');
                     });
                 },
                 async getStreamingUrl(episodeUrl) {
+                    console.log("DEBUG: Richiesta URL streaming per:", episodeUrl);
                     const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
+                    console.log("DEBUG: Risposta streaming:", response.data);
                     if (response.data.video_url) {
                         this.videoUrl = response.data.video_url;
                         this.streamingUrl = response.data.streaming_url;
@@ -303,6 +309,7 @@
                         this.streamingUrl = response.data.streaming_url;
                         this.videoUrl = '';
                     } else {
+                        console.error("DEBUG: Errore nel recupero dell'URL di streaming:", response.data.error);
                         alert('Errore: ' + response.data.error);
                     }
                     this.$nextTick(() => {
@@ -340,7 +347,7 @@
                     });
                 },
                 async addSeriesToPlaylist() {
-                    console.log("Aggiungi Serie alla Lista cliccato");
+                    console.log("DEBUG: Aggiunta serie alla playlist iniziata");
                     this.loading = true;
                     this.progress = 0;
                     try {
@@ -348,30 +355,43 @@
                             throw new Error("Nessuna serie selezionata");
                         }
                         const animeUrl = this.selectedAnime.url;
-                        console.log("Anime URL:", animeUrl);
+                        console.log("DEBUG: URL anime:", animeUrl);
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
-                        console.log("Risposta dal server:", response.data);
+                        console.log("DEBUG: Risposta episodi per playlist:", response.data);
                         const episodes = response.data;
 
-                        const title = this.selectedAnime.title;  // Usiamo il titolo esatto selezionato
+                        const title = this.selectedAnime.title;
                         const processedEpisodes = [];
 
+                        // Aggiorniamo la barra di progresso per il recupero degli episodi
+                        this.progress = 10;
+
+                        // Recuperiamo tutti i link degli episodi in parallelo
+                        const streamResponses = await Promise.all(episodes.map(episode => 
+                            axios.post('/stream', new URLSearchParams({ episode_url: episode.url }))
+                        ));
+
+                        // Aggiorniamo la barra di progresso dopo aver ottenuto tutti i link
+                        this.progress = 50;
+
+                        // Processiamo le risposte
                         for (let i = 0; i < episodes.length; i++) {
                             const episode = episodes[i];
-                            const streamResponse = await axios.post('/stream', new URLSearchParams({ episode_url: episode.url }));
+                            const streamResponse = streamResponses[i];
+                            console.log(`DEBUG: Risposta streaming per episodio ${i + 1}:`, streamResponse.data);
                             if (streamResponse.data.video_url) {
                                 episode.url = streamResponse.data.video_url;
                             } else if (streamResponse.data.streaming_url) {
                                 episode.url = streamResponse.data.streaming_url;
                             }
                             processedEpisodes.push(episode);
-                            this.progress = Math.round((i + 1) / episodes.length * 100);
+                            this.progress = 50 + Math.round((i + 1) / episodes.length * 50);
                         }
 
                         this.playlist.push({ title: title, episodes: processedEpisodes });
-                        console.log("Playlist aggiornata:", this.playlist);
+                        console.log("DEBUG: Playlist aggiornata:", this.playlist);
                     } catch (error) {
-                        console.error('Errore nell\'aggiungere alla lista:', error);
+                        console.error('DEBUG: Errore nell\'aggiungere alla lista:', error);
                         alert('Errore nell\'aggiungere la serie alla lista: ' + error.message);
                     } finally {
                         this.loading = false;
@@ -379,8 +399,9 @@
                     }
                 },
                 async downloadPlaylist() {
-                    console.log("Scarica la lista cliccato");
+                    console.log("DEBUG: Download playlist iniziato");
                     const response = await axios.post('/save_playlist', { playlist: this.playlist });
+                    console.log("DEBUG: Risposta download playlist:", response.data);
                     const blob = new Blob([response.data], { type: 'text/plain' });
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
@@ -389,21 +410,30 @@
                 },
                 clearPlaylist() {
                     this.playlist = [];
-                    console.log("Lista cancellata");
+                    console.log("DEBUG: Lista cancellata");
                 },
-                async renameTitle() {
-                    if (this.selectedAnime && this.newTitle) {
+                async renameSeries(index) {
+                    const item = this.playlist[index];
+                    console.log("DEBUG: Rinomina serie iniziata per:", item.title);
+                    if (item.newTitle && item.newTitle !== item.title) {
+                        const oldTitle = item.title;
+                        item.title = item.newTitle;
+                        item.newTitle = '';
+                        
                         const response = await axios.post('/rename_title', {
-                            original_title: this.selectedAnime.title,
-                            new_title: this.newTitle
+                            original_title: oldTitle,
+                            new_title: item.title
                         });
+                        
                         if (response.data.message) {
-                            alert('Titolo rinominato con successo');
-                            this.newTitle = '';
+                            console.log('DEBUG: Titolo rinominato con successo:', item.title);
+                            this.$set(this.playlist, index, item);
+                        } else {
+                            console.error('DEBUG: Errore nel rinominare il titolo');
+                            item.title = oldTitle;
                         }
-                    } else {
-                        alert('Seleziona una serie e inserisci un nuovo titolo');
                     }
+                    item.isRenaming = false;
                 },
                 startRenaming(index) {
                     this.$set(this.playlist[index], 'isRenaming', true);
@@ -415,35 +445,9 @@
                     this.$set(this.playlist[index], 'newTitle', '');
                 },
 
-                async renameSeries(index) {
-                    const item = this.playlist[index];
-                    if (item.newTitle && item.newTitle !== item.title) {
-                        const oldTitle = item.title;
-                        item.title = item.newTitle;
-                        item.newTitle = '';
-                        
-                        // Aggiorna il titolo per la ricerca TMDb
-                        const response = await axios.post('/rename_title', {
-                            original_title: oldTitle,
-                            new_title: item.title
-                        });
-                        
-                        if (response.data.message) {
-                            console.log('Titolo rinominato con successo');
-                            // Aggiorna la playlist
-                            this.$set(this.playlist, index, item);
-                        } else {
-                            console.error('Errore nel rinominare il titolo');
-                            // Ripristina il vecchio titolo in caso di errore
-                            item.title = oldTitle;
-                        }
-                    }
-                    item.isRenaming = false;
-                },
-
                 removeFromPlaylist(index) {
-                    this.playlist.splice(index, 1);
-                    console.log("Elemento rimosso dalla playlist");
+                    const removedItem = this.playlist.splice(index, 1);
+                    console.log("DEBUG: Elemento rimosso dalla playlist:", removedItem);
                 },
             }
         });

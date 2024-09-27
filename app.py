@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from collections import defaultdict
 import os
 from dotenv import load_dotenv
-from tmdbv3api import TMDb, TV, Season
+from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
 from googletrans import Translator
 import jaconv
@@ -168,8 +168,8 @@ def get_series_metadata(title):
             episodes = []
             for s in seasons:
                 print(f"DEBUG: Recuperando dettagli per la stagione {s.season_number}")
-                season_details = season.details(best_match.id, s.season_number)
-                for ep in season_details.episodes:
+                season_episodes = Episode().get_episodes(best_match.id, s.season_number)
+                for ep in season_episodes:
                     print(f"DEBUG: Episodio {ep.episode_number}: {ep.name}")
                     episodes.append({
                         'season_number': s.season_number,
@@ -191,6 +191,8 @@ def get_series_metadata(title):
         print(f"DEBUG: Nessuna serie trovata su TMDb per: {search_title}")
     except Exception as e:
         print(f"DEBUG: Errore nel recupero dei metadata da TMDb: {e}")
+        import traceback
+        traceback.print_exc()
     return None
 
 @app.route('/')
