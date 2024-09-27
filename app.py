@@ -121,9 +121,7 @@ def extract_video_url(url):
 def get_series_metadata(title):
     try:
         print(f"DEBUG: Cercando serie su TMDb: {title}")
-        # Controlla se il titolo è stato rinominato
         search_title = renamed_titles.get(title, title)
-        # Rimuovi "(ITA)" e altri suffissi comuni dal titolo per la ricerca
         search_title = re.sub(r'\s*(\(ITA\)|\(SUB ITA\)|\(TV\)|\(OAV\)|\(OVA\))\s*', '', search_title).strip()
         print(f"DEBUG: Titolo di ricerca modificato: {search_title}")
         
@@ -161,7 +159,7 @@ def get_series_metadata(title):
                         highest_ratio = ratio
                         best_match = result
 
-        if best_match and highest_ratio > 60:  # Soglia di somiglianza
+        if best_match and highest_ratio > 60:
             print(f"DEBUG: Serie trovata su TMDb: {best_match.name} (Somiglianza: {highest_ratio}%)")
             details = tv.details(best_match.id)
             seasons = details.seasons
@@ -174,7 +172,7 @@ def get_series_metadata(title):
                     episodes.append({
                         'season_number': s.season_number,
                         'episode_number': ep.episode_number,
-                        'name': ep.name
+                        'name': ep.name or f"Episodio {ep.episode_number}"
                     })
             print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
             return {
@@ -239,10 +237,17 @@ def save_playlist():
     
     for series in playlist:
         series_title = series['title']
-        # ... (codice esistente per i metadati della serie)
+        metadata = get_series_metadata(series_title)
         
-        for episode in series['episodes']:
-            episode_title = episode['title']
+        if metadata and 'episodes' in metadata:
+            tmdb_episodes = {ep['episode_number']: ep['name'] for ep in metadata['episodes']}
+        else:
+            tmdb_episodes = {}
+        
+        for i, episode in enumerate(series['episodes'], 1):
+            episode_number = i
+            episode_title = tmdb_episodes.get(episode_number, episode['title'])
+            
             m3u_content += f"#EXTINF:-1,{episode_title} - {series_title}\n"
             m3u_content += f"{episode['url']}\n"
         
