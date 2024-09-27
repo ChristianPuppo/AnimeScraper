@@ -394,6 +394,7 @@
 
                         this.progress = 5;
                         this.updateEstimatedTime(5);
+                        console.log("Debug: Initial progress set to 5%, estimatedTime:", this.estimatedTime);
 
                         for (let i = 0; i < episodes.length; i++) {
                             const episode = episodes[i];
@@ -414,7 +415,7 @@
                             
                             this.progress = 5 + Math.round((i + 1) / episodes.length * 95);
                             this.updateEstimatedTime(this.progress);
-                            console.log("Debug: Loop iteration", i, "Progress:", this.progress, "EstimatedTime:", this.estimatedTime);
+                            console.log(`Debug: Episode ${i+1}/${episodes.length} processed. Progress: ${this.progress}%, estimatedTime: ${this.estimatedTime}`);
                         }
 
                         this.playlist.push({ title: title, episodes: processedEpisodes });
@@ -427,7 +428,7 @@
                         this.loading = false;
                         this.progress = 0;
                         this.estimatedTime = 0;
-                        console.log("Debug: addSeriesToPlaylist finished");
+                        console.log("Debug: addSeriesToPlaylist finished. Final estimatedTime:", this.estimatedTime);
                     }
                 },
                 async downloadPlaylist() {
@@ -582,8 +583,9 @@
                 },
             },
             watch: {
-                // Rimuoviamo il watch su playlistName per evitare aggiornamenti automatici
-                // playlistName: function() { ... }
+                estimatedTime(newValue, oldValue) {
+                    console.log(`Debug: estimatedTime changed from ${oldValue} to ${newValue}`);
+                }
             },
         });
     </script>
