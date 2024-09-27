@@ -333,7 +333,19 @@ def update_shared_playlist():
     shared_playlists[share_id] = {'playlist': playlist, 'name': playlist_name}
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     
-    return jsonify({'share_url': share_url, 'share_id': share_id})
+    # Aggiorniamo immediatamente la playlist condivisa
+    total_episodes = sum(len(series['episodes']) for series in playlist)
+    total_series = len(playlist)
+    series_list = [{'title': series['title'], 'episode_count': len(series['episodes'])} for series in playlist]
+    
+    return jsonify({
+        'share_url': share_url, 
+        'share_id': share_id,
+        'playlist_name': playlist_name,
+        'total_episodes': total_episodes,
+        'total_series': total_series,
+        'series_list': series_list
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)

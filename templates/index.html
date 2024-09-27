@@ -523,7 +523,14 @@
 
                 async updatePlaylistName() {
                     if (this.playlist.length > 0) {
-                        await this.updateSharedPlaylist();
+                        const response = await axios.post('/update_shared_playlist', {
+                            playlist: this.playlist,
+                            playlist_name: this.playlistName,
+                            share_id: this.shareId
+                        });
+                        this.shareUrl = response.data.share_url;
+                        this.shareId = response.data.share_id;
+                        this.isShared = true;  // Assicuriamoci che la sezione di condivisione sia visibile
                         alert('Nome della playlist aggiornato con successo!');
                     } else {
                         alert('Aggiungi almeno una serie alla playlist prima di aggiornare il nome.');
