@@ -273,7 +273,7 @@
                     {% for item in playlist_history %}
                     <li class="mb-2">
                         {{ item.name }} - {{ item.date }}
-                        <button @click="reloadPlaylist('{{ item.name }}', {{ item.playlist|safe }})" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
+                        <button onclick="reloadPlaylist('{{ item.name }}', '{{ item.playlist|tojson|safe }}')" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
                     </li>
                     {% endfor %}
                 </ul>
@@ -519,8 +519,7 @@
                     document.getElementById('playlist-history').innerHTML = response.data;
                 },
 
-                reloadPlaylist(name, playlistString) {
-                    const playlist = JSON.parse(playlistString);
+                reloadPlaylist(name, playlist) {
                     this.playlist = playlist.map(series => ({
                         ...series,
                         episodes: series.episodes.map(ep => ({
@@ -534,6 +533,11 @@
             },
             mounted() {
                 this.getPlaylistHistory();
+                window.addEventListener('message', (event) => {
+                    if (event.data.type === 'reloadPlaylist') {
+                        this.reloadPlaylist(event.data.name, event.data.playlist);
+                    }
+                });
             },
             errorCaptured(err, vm, info) {
                 console.error('Errore catturato in Vue:', err, info);

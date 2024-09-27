@@ -327,6 +327,10 @@ def download_shared_playlist(share_id):
 @app.route('/get_playlist_history', methods=['GET'])
 def get_playlist_history():
     playlist_history = session.get('playlist_history', [])
+    # Assicuriamoci che la playlist sia serializzabile
+    for item in playlist_history:
+        if 'playlist' in item and isinstance(item['playlist'], str):
+            item['playlist'] = json.loads(item['playlist'])
     return render_template('playlist_history.html', playlist_history=playlist_history)
 
 if __name__ == '__main__':
