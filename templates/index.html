@@ -212,6 +212,9 @@
                         <div class="estimated-time" v-if="estimatedTime > 0">
                             ETA: {% raw %}{{ formatTime(estimatedTime) }}{% endraw %}
                         </div>
+                        <div class="debug-info">
+                            Debug: Progress: {{ progress }}, EstimatedTime: {{ estimatedTime }}, Formatted: {% raw %}{{ formatTime(estimatedTime) }}{% endraw %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -371,7 +374,7 @@
                     });
                 },
                 async addSeriesToPlaylist() {
-                    console.log("DEBUG: Aggiunta serie alla playlist iniziata");
+                    console.log("Debug: addSeriesToPlaylist started");
                     this.loading = true;
                     this.progress = 0;
                     this.startTime = Date.now();
@@ -411,6 +414,7 @@
                             
                             this.progress = 5 + Math.round((i + 1) / episodes.length * 95);
                             this.updateEstimatedTime(this.progress);
+                            console.log("Debug: Loop iteration", i, "Progress:", this.progress, "EstimatedTime:", this.estimatedTime);
                         }
 
                         this.playlist.push({ title: title, episodes: processedEpisodes });
@@ -423,6 +427,7 @@
                         this.loading = false;
                         this.progress = 0;
                         this.estimatedTime = 0;
+                        console.log("Debug: addSeriesToPlaylist finished");
                     }
                 },
                 async downloadPlaylist() {
@@ -558,6 +563,7 @@
                 },
 
                 formatTime(seconds) {
+                    console.log("Debug: formatTime called with", seconds);
                     const minutes = Math.floor(seconds / 60);
                     const remainingSeconds = Math.round(seconds % 60);
                     if (minutes > 0) {
@@ -568,9 +574,11 @@
                 },
 
                 updateEstimatedTime(currentProgress) {
+                    console.log("Debug: updateEstimatedTime called with", currentProgress);
                     const elapsedTime = (Date.now() - this.startTime) / 1000; // tempo trascorso in secondi
                     const estimatedTotalTime = (elapsedTime / currentProgress) * 100;
                     this.estimatedTime = Math.max(0, estimatedTotalTime - elapsedTime);
+                    console.log("Debug: New estimatedTime:", this.estimatedTime);
                 },
             },
             watch: {
