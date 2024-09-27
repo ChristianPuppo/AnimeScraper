@@ -34,13 +34,14 @@ shared_playlists = {}
 
 app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
 
-def add_to_history(playlist_name):
+def add_to_history(playlist_name, share_id):
     if 'playlist_history' not in session:
         session['playlist_history'] = []
     
     history_entry = {
         'name': playlist_name,
-        'date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        'date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'share_id': share_id
     }
     
     session['playlist_history'].insert(0, history_entry)
@@ -276,7 +277,14 @@ def share_playlist():
     share_id = str(uuid.uuid4())
     shared_playlists[share_id] = {'playlist': playlist, 'name': playlist_name}
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
-    return jsonify({'share_url': share_url})
+    return jsonify({'share_url': share_url, 'share_id': share_id})
+
+@app.route('/add_share_id_to_history', methods=['POST'])
+def add_share_id_to_history():
+    playlist_name = request.json['playlist_name']
+    share_id = request.json['share_id']
+    add_to_history(playlist_name, share_id)
+    return jsonify({'message': 'Share ID added to history successfully'})
 
 @app.route('/download_shared_playlist/<share_id>')
 def download_shared_playlist(share_id):

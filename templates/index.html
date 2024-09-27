@@ -271,8 +271,9 @@
                 <h2 class="text-2xl font-semibold mb-3 text-primary">Cronologia Playlist:</h2>
                 <ul>
                     {% for item in playlist_history %}
-                    <li class="mb-2">
-                        {{ item.name }} - {{ item.date }}
+                    <li class="mb-2 flex justify-between items-center">
+                        <span>{{ item.name }} - {{ item.date }}</span>
+                        <button @click="openSharedPlaylist('{{ item.share_id }}')" class="btn btn-secondary text-white p-2">Apri</button>
                     </li>
                     {% endfor %}
                 </ul>
@@ -442,6 +443,19 @@
                         link.click();
                         
                         this.getPlaylistHistory();
+                        
+                        // Genera e salva l'ID di condivisione
+                        const shareResponse = await axios.post('/share_playlist', { 
+                            playlist: this.playlist,
+                            playlist_name: this.playlistName
+                        });
+                        const shareId = shareResponse.data.share_id;
+                        
+                        // Aggiungi l'ID di condivisione alla cronologia
+                        await axios.post('/add_share_id_to_history', { 
+                            playlist_name: this.playlistName,
+                            share_id: shareId
+                        });
                     } else {
                         console.error("DEBUG: Errore nel download della playlist", response);
                         alert('Si è verificato un errore durante il download della playlist. Riprova.');
@@ -509,6 +523,10 @@
                 async getPlaylistHistory() {
                     const response = await axios.get('/get_playlist_history');
                     document.getElementById('playlist-history').innerHTML = response.data;
+                },
+
+                async openSharedPlaylist(shareId) {
+                    window.open(`/download_shared_playlist/${shareId}`, '_blank');
                 },
             },
             mounted() {
