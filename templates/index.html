@@ -164,19 +164,38 @@
             .main-container {
                 margin-top: 0;
                 border-radius: 0;
+                padding: 1rem;
             }
-        }
-
-        @media (max-width: 640px) {
+            .search-container {
+                flex-direction: column;
+            }
+            .search-input {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+            .search-button {
+                width: 100%;
+                margin-top: 0.5rem;
+            }
             .playlist-item {
                 font-size: 0.9rem;
             }
             .btn {
                 padding: 0.5rem 1rem;
+                font-size: 0.9rem;
             }
             .input {
-                font-size: 1rem;
+                font-size: 0.9rem;
                 padding: 0.5rem;
+            }
+            .flex-col-mobile {
+                flex-direction: column;
+            }
+            .w-full-mobile {
+                width: 100%;
+            }
+            .mt-2-mobile {
+                margin-top: 0.5rem;
             }
         }
     </style>
@@ -269,9 +288,9 @@
                         </div>
                     </li>
                 </ul>
-                <div class="flex items-center mb-2">
-                    <input v-model="playlistName" class="input p-2 flex-grow" placeholder="Nome della playlist">
-                    <button @click="updatePlaylistName" class="btn btn-secondary text-white p-2 ml-2">Aggiorna</button>
+                <div class="flex items-center mb-2 flex-col-mobile">
+                    <input v-model="playlistName" class="input p-2 flex-grow w-full-mobile" placeholder="Nome della playlist">
+                    <button @click="updatePlaylistName" class="btn btn-secondary text-white p-2 ml-2 w-full-mobile mt-2-mobile">Aggiorna</button>
                 </div>
                 
                 <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4 full-width-btn">Scarica la lista</button>
