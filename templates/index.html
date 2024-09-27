@@ -273,6 +273,7 @@
                     {% for item in playlist_history %}
                     <li class="mb-2">
                         {{ item.name }} - {{ item.date }}
+                        <button @click="reloadPlaylist('{{ item.name }}', {{ item.playlist|tojson }})" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
                     </li>
                     {% endfor %}
                 </ul>
@@ -509,6 +510,12 @@
                 async getPlaylistHistory() {
                     const response = await axios.get('/get_playlist_history');
                     document.getElementById('playlist-history').innerHTML = response.data;
+                },
+
+                reloadPlaylist(name, playlist) {
+                    this.playlist = playlist;
+                    this.playlistName = name;
+                    console.log("DEBUG: Playlist ricaricata:", name);
                 },
             },
             mounted() {

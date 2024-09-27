@@ -3,6 +3,7 @@
     {% for item in playlist_history %}
     <li class="mb-2">
         {{ item.name }} - {{ item.date }}
+        <button @click="reloadPlaylist('{{ item.name }}', {{ item.playlist|tojson }})" class="btn btn-secondary text-white p-1 text-sm">Ricarica</button>
     </li>
     {% endfor %}
 </ul>
