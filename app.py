@@ -124,8 +124,13 @@ def get_series_metadata(title):
         print(f"DEBUG: Titolo di ricerca modificato: {search_title}")
         
         search = tv.search(search_title)
+        if not search:
+            # Se non trova risultati, prova a cercare titoli simili
+            search = tv.search(search_title[:len(search_title)//2])  # Cerca usando la prima metà del titolo
+        
         if search:
-            best_match = search[0]
+            # Trova la corrispondenza migliore
+            best_match = max(search, key=lambda x: fuzz.ratio(x.name.lower(), search_title.lower()))
             print(f"DEBUG: Serie trovata su TMDb: {best_match.name}")
             details = tv.details(best_match.id)
             seasons = details.seasons
@@ -213,9 +218,13 @@ def save_playlist():
         
         for i, episode in enumerate(series['episodes'], 1):
             episode_number = i
-            episode_title = tmdb_episodes.get(episode_number, f"Episodio {episode_number}")
+            episode_title = tmdb_episodes.get(episode_number)
             
-            m3u_content += f"#EXTINF:-1,{episode_title} - {series_title}\n"
+            if episode_title:
+                m3u_content += f"#EXTINF:-1,{episode_title} - {series_title}\n"
+            else:
+                m3u_content += f"#EXTINF:-1,Episodio {episode_number} - {series_title}\n"
+            
             m3u_content += f"{episode['url']}\n"
         
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
