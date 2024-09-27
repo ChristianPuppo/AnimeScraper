@@ -287,35 +287,51 @@ def download_shared_playlist(share_id):
     playlist = shared_data['playlist']
     playlist_name = shared_data['name']
     
+    total_episodes = sum(len(series['episodes']) for series in playlist)
+    total_series = len(playlist)
+    series_list = [{'title': series['title'], 'episode_count': len(series['episodes'])} for series in playlist]
+    
+    download_url = url_for('generate_m3u', share_id=share_id, _external=True)
+    
+    return render_template('shared_playlist.html', 
+                           playlist_name=playlist_name,
+                           total_episodes=total_episodes,
+                           total_series=total_series,
+                           series_list=series_list,
+                           download_url=download_url)
+
+@app.route('/generate_m3u/<share_id>')
+def generate_m3u(share_id):
+    if share_id not in shared_playlists:
+        return "Playlist non trovata", 404
+    
+    shared_data = shared_playlists[share_id]
+    playlist = shared_data['playlist']
+    playlist_name = shared_data['name']
+    
     m3u_content = "#EXTM3U\n"
     for series in playlist:
         series_title = series['title']
-        print(f"DEBUG: Elaborazione serie: {series_title}")
         metadata = get_series_metadata(series_title)
         
         if metadata and 'episodes' in metadata:
             tmdb_episodes = {ep['episode_number']: ep['name'] for ep in metadata['episodes']}
-            print(f"DEBUG: Episodi trovati su TMDb per {series_title}: {tmdb_episodes}")
         else:
             tmdb_episodes = {}
-            print(f"DEBUG: Nessun episodio trovato su TMDb per {series_title}")
         
         for i, episode in enumerate(series['episodes'], 1):
             episode_number = i
             episode_title = tmdb_episodes.get(episode_number)
             
             if episode_title:
-                print(f"DEBUG: Usando titolo TMDb per episodio {episode_number}: {episode_title}")
                 m3u_content += f"#EXTINF:-1,Ep. {episode_number} - {episode_title} - {series_title}\n"
             else:
-                print(f"DEBUG: Usando titolo generico per episodio {episode_number}")
                 m3u_content += f"#EXTINF:-1,Ep. {episode_number} - Episodio {episode_number} - {series_title}\n"
             
             m3u_content += f"{episode['url']}\n"
         
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
     
-    print(f"DEBUG: Contenuto M3U generato:\n{m3u_content}")
     return Response(
         m3u_content,
         mimetype='text/plain',
