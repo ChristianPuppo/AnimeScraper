@@ -8,6 +8,8 @@ import os
 from dotenv import load_dotenv
 from tmdbv3api import TMDb, TV, Season
 from fuzzywuzzy import fuzz
+from googletrans import Translator
+import jaconv
 
 app = Flask(__name__)
 
@@ -121,6 +123,13 @@ def get_series_metadata(title):
             search_title.split(':')[0].strip(),  # Prendi la parte prima dei due punti
             re.sub(r'\s*\d+\s*$', '', search_title).strip(),  # Rimuovi numeri alla fine del titolo
         ]
+        
+        # Aggiungi varianti tradotte se il titolo sembra essere in giapponese
+        if is_japanese(search_title):
+            translator = Translator()
+            romaji = jaconv.kata2roma(jaconv.hira2kata(search_title))
+            translated = translator.translate(search_title, dest='en').text
+            title_variants.extend([romaji, translated])
         
         best_match = None
         highest_ratio = 0
