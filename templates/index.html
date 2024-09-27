@@ -167,15 +167,22 @@
                 padding: 1rem;
             }
             .search-container {
+                position: relative;
+                display: flex;
                 flex-direction: column;
             }
             .search-input {
                 width: 100%;
-                margin-bottom: 0.5rem;
+                padding-right: 50px;
             }
             .search-button {
-                width: 100%;
-                margin-top: 0.5rem;
+                position: absolute;
+                right: 0;
+                top: 0;
+                width: 50px;
+                height: 100%;
+                border-top-left-radius: 0;
+                border-bottom-left-radius: 0;
             }
             .playlist-item {
                 font-size: 0.9rem;
