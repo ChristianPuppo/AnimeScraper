@@ -209,7 +209,7 @@
                     <div v-else class="progress-bar">
                         <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
                         <div class="episode-count">{{ progress }}%</div>
-                        <div class="estimated-time" v-if="estimatedTime > 0">Tempo stimato: {{ estimatedTime | formatTime }}</div>
+                        <div class="estimated-time" v-if="estimatedTime > 0">Tempo stimato: {% raw %}{{ formatTime(estimatedTime) }}{% endraw %}</div>
                     </div>
                 </div>
             </div>
