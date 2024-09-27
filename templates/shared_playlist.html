@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Playlist Anime Condivisa</title>
+    <title>{{ playlist_name }} - Playlist Anime Condivisa</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body {
             background-color: #1a202c;
             color: #e2e8f0;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Roboto', sans-serif;
         }
         .container {
             max-width: 800px;
@@ -18,18 +18,24 @@
         }
         .card {
             background-color: #2d3748;
-            border-radius: 0.5rem;
+            border-radius: 1rem;
             padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-5px);
         }
         .btn {
             display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 0.25rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
             font-weight: bold;
             text-align: center;
-            transition: background-color 0.3s ease;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         .btn-primary {
             background-color: #4299e1;
@@ -37,25 +43,33 @@
         }
         .btn-primary:hover {
             background-color: #3182ce;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .series-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1.5rem;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1 class="text-4xl font-bold mb-8 text-center">Playlist Anime Condivisa</h1>
+<body class="bg-gray-900 text-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold mb-8 text-center text-blue-400">{{ playlist_name }}</h1>
         <div class="card">
-            <h2 class="text-2xl font-semibold mb-4">{{ playlist_name }}</h2>
-            <p class="mb-4">Questa playlist contiene {{ total_episodes }} episodi da {{ total_series }} serie anime.</p>
+            <h2 class="text-2xl font-semibold mb-4 text-blue-300">Dettagli Playlist</h2>
+            <p class="mb-4 text-lg">Questa playlist contiene <span class="font-bold text-blue-300">{{ total_episodes }}</span> episodi da <span class="font-bold text-blue-300">{{ total_series }}</span> serie anime.</p>
             <a href="{{ download_url }}" class="btn btn-primary">Scarica Playlist M3U</a>
         </div>
-        <div class="mt-8">
-            <h3 class="text-xl font-semibold mb-4">Serie incluse:</h3>
-            {% for series in series_list %}
-            <div class="card">
-                <h4 class="text-lg font-medium mb-2">{{ series.title }}</h4>
-                <p>{{ series.episode_count }} episodi</p>
+        <div class="mt-12">
+            <h3 class="text-2xl font-semibold mb-6 text-blue-300">Serie incluse:</h3>
+            <div class="series-grid">
+                {% for series in series_list %}
+                <div class="card">
+                    <h4 class="text-xl font-medium mb-2 text-blue-200">{{ series.title }}</h4>
+                    <p class="text-gray-400">{{ series.episode_count }} episodi</p>
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
     </div>
 </body>

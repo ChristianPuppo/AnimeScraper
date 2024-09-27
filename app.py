@@ -279,6 +279,20 @@ def share_playlist():
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     return jsonify({'share_url': share_url, 'share_id': share_id})
 
+@app.route('/update_shared_playlist', methods=['POST'])
+def update_shared_playlist():
+    playlist = request.json['playlist']
+    playlist_name = request.json['playlist_name']
+    share_id = request.json.get('share_id')
+
+    if not share_id:
+        share_id = str(uuid.uuid4())
+
+    shared_playlists[share_id] = {'playlist': playlist, 'name': playlist_name}
+    share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
+    
+    return jsonify({'share_url': share_url, 'share_id': share_id})
+
 @app.route('/add_share_id_to_history', methods=['POST'])
 def add_share_id_to_history():
     playlist_name = request.json['playlist_name']

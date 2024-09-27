@@ -298,6 +298,7 @@
                 newTitle: '',
                 playlistName: '',
                 shareUrl: '',
+                shareId: null,
                 playlistHistory: [],
             },
             methods: {
@@ -413,6 +414,7 @@
 
                         this.playlist.push({ title: title, episodes: processedEpisodes });
                         console.log("DEBUG: Playlist aggiornata:", this.playlist);
+                        await this.updateSharedPlaylist();
                     } catch (error) {
                         console.error('DEBUG: Errore nell\'aggiungere alla lista:', error);
                         alert('Errore nell\'aggiungere la serie alla lista: ' + error.message);
@@ -498,6 +500,7 @@
                         if (response.data.message) {
                             console.log('DEBUG: Titolo rinominato con successo:', item.title);
                             this.$set(this.playlist, index, item);
+                            await this.updateSharedPlaylist();
                         } else {
                             console.error('DEBUG: Errore nel rinominare il titolo');
                             item.title = oldTitle;
@@ -515,9 +518,10 @@
                     this.$set(this.playlist[index], 'newTitle', '');
                 },
 
-                removeFromPlaylist(index) {
+                async removeFromPlaylist(index) {
                     const removedItem = this.playlist.splice(index, 1);
                     console.log("DEBUG: Elemento rimosso dalla playlist:", removedItem);
+                    await this.updateSharedPlaylist();
                 },
 
                 async getPlaylistHistory() {
@@ -528,9 +532,26 @@
                 async openSharedPlaylist(shareId) {
                     window.open(`/download_shared_playlist/${shareId}`, '_blank');
                 },
+
+                async updateSharedPlaylist() {
+                    const response = await axios.post('/update_shared_playlist', {
+                        playlist: this.playlist,
+                        playlist_name: this.playlistName,
+                        share_id: this.shareId
+                    });
+                    this.shareUrl = response.data.share_url;
+                    this.shareId = response.data.share_id;
+                },
             },
             mounted() {
                 this.getPlaylistHistory();
+            },
+            watch: {
+                playlistName: function() {
+                    if (this.playlist.length > 0) {
+                        this.updateSharedPlaylist();
+                    }
+                }
             }
         });
     </script>
