@@ -243,10 +243,11 @@ def save_playlist():
                 episode_number = int(episode_number.group(1))
                 episode_title = tmdb_episodes.get(episode_number, f"Episodio {episode_number}")
             else:
+                episode_number = i
                 episode_title = f"Episodio {i}"
             
-            print(f"DEBUG: Titolo episodio {i}: {episode_title}")
-            episode_title = f"{episode_title} - {series_title}"
+            print(f"DEBUG: Titolo episodio {episode_number}: {episode_title}")
+            episode_title = f"E{episode_number:02d} - {episode_title} - {series_title}"
             
             m3u_content += f"#EXTINF:-1,{episode_title}\n"
             m3u_content += f"{episode['url']}\n"
