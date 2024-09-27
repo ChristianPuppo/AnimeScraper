@@ -252,7 +252,18 @@
                         </div>
                     </li>
                 </ul>
+                <input v-model="playlistName" class="input p-2 mb-2 w-full" placeholder="Nome della playlist">
+                
                 <button @click="downloadPlaylist" class="btn btn-primary text-white p-3 mt-4 full-width-btn">Scarica la lista</button>
+                
+                <button @click="sharePlaylist" class="btn btn-secondary text-white p-3 mt-2 full-width-btn">Condividi la lista</button>
+                
+                <div v-if="shareUrl" class="mt-4">
+                    <p>Link per la condivisione:</p>
+                    <input :value="shareUrl" class="input p-2 w-full" readonly>
+                    <button @click="copyShareUrl" class="btn btn-secondary text-white p-2 mt-2">Copia link</button>
+                </div>
+                
                 <button @click="clearPlaylist" class="btn btn-secondary text-white p-3 mt-2 full-width-btn">Cancella la lista</button>
             </div>
         </div>
@@ -273,6 +284,8 @@
                 progress: 0,
                 selectedAnime: null,  // Aggiungiamo questa nuova variabile
                 newTitle: '',
+                playlistName: 'Playlist Anime',
+                shareUrl: '',
             },
             methods: {
                 async searchAnime() {
@@ -397,16 +410,37 @@
                 },
                 async downloadPlaylist() {
                     console.log("DEBUG: Download playlist iniziato");
-                    const response = await axios.post('/save_playlist', { playlist: this.playlist });
-                    console.log("DEBUG: Risposta download playlist:", response.data);
+                    const response = await axios.post('/save_playlist', { 
+                        playlist: this.playlist,
+                        playlist_name: this.playlistName
+                    }, { responseType: 'blob' });
+                    console.log("DEBUG: Risposta download playlist ricevuta");
+                    
                     const blob = new Blob([response.data], { type: 'text/plain' });
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
-                    link.download = 'playlist.m3u';
+                    link.download = `${this.playlistName}.m3u`;
                     link.click();
                 },
+                async sharePlaylist() {
+                    const response = await axios.post('/share_playlist', {
+                        playlist: this.playlist,
+                        playlist_name: this.playlistName
+                    });
+                    this.shareUrl = response.data.share_url;
+                },
+                
+                copyShareUrl() {
+                    navigator.clipboard.writeText(this.shareUrl).then(() => {
+                        alert('Link copiato negli appunti!');
+                    }, (err) => {
+                        console.error('Errore nel copiare il testo: ', err);
+                    });
+                },
+                
                 clearPlaylist() {
                     this.playlist = [];
+                    this.shareUrl = '';
                     console.log("DEBUG: Lista cancellata");
                 },
                 async renameSeries(index) {
