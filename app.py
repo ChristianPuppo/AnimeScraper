@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response, redirect, url_for
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -10,6 +10,7 @@ from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
 import json
 import uuid
+import datetime
 
 app = Flask(__name__)
 
@@ -30,6 +31,21 @@ renamed_titles = {}
 
 # Aggiungi questo dizionario per memorizzare le playlist condivise
 shared_playlists = {}
+
+app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
+
+def add_to_history(playlist_name):
+    if 'playlist_history' not in session:
+        session['playlist_history'] = []
+    
+    history_entry = {
+        'name': playlist_name,
+        'date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    session['playlist_history'].insert(0, history_entry)
+    session['playlist_history'] = session['playlist_history'][:10]  # Mantieni solo le ultime 10 playlist
+    session.modified = True
 
 @app.route('/rename_title', methods=['POST'])
 def rename_title():
@@ -208,7 +224,11 @@ def stream():
 @app.route('/save_playlist', methods=['POST'])
 def save_playlist():
     playlist = request.json['playlist']
-    playlist_name = request.json.get('playlist_name', 'Playlist Anime')
+    playlist_name = request.json.get('playlist_name', '').strip()
+    
+    if not playlist_name:
+        return jsonify({"error": "Il nome della playlist non può essere vuoto"}), 400
+    
     m3u_content = "#EXTM3U\n"
     
     for series in playlist:
@@ -239,6 +259,9 @@ def save_playlist():
         m3u_content += "#EXT-X-ENDLIST\n\n"  # Separatore tra serie
     
     print(f"DEBUG: Contenuto M3U generato:\n{m3u_content}")
+    
+    add_to_history(playlist_name)
+    
     return Response(
         m3u_content,
         mimetype='text/plain',
@@ -297,6 +320,10 @@ def download_shared_playlist(share_id):
         mimetype='text/plain',
         headers={'Content-Disposition': f'attachment; filename="{playlist_name}.m3u"'}
     )
+
+@app.route('/get_playlist_history', methods=['GET'])
+def get_playlist_history():
+    return jsonify(session.get('playlist_history', []))
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -266,6 +266,15 @@
                 
                 <button @click="clearPlaylist" class="btn btn-secondary text-white p-3 mt-2 full-width-btn">Cancella la lista</button>
             </div>
+
+            <div v-if="playlistHistory.length" class="mt-8">
+                <h2 class="text-2xl font-semibold mb-3 text-primary">Cronologia Playlist:</h2>
+                <ul>
+                    <li v-for="(item, index) in playlistHistory" :key="index" class="mb-2">
+                        {{ item.name }} - {{ item.date }}
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -284,8 +293,9 @@
                 progress: 0,
                 selectedAnime: null,  // Aggiungiamo questa nuova variabile
                 newTitle: '',
-                playlistName: 'Playlist Anime',
+                playlistName: '',
                 shareUrl: '',
+                playlistHistory: [],
             },
             methods: {
                 async searchAnime() {
@@ -409,6 +419,11 @@
                     }
                 },
                 async downloadPlaylist() {
+                    if (!this.playlistName.trim()) {
+                        alert('Per favore, inserisci un nome per la playlist prima di scaricarla.');
+                        return;
+                    }
+                    
                     console.log("DEBUG: Download playlist iniziato");
                     const response = await axios.post('/save_playlist', { 
                         playlist: this.playlist,
@@ -416,11 +431,19 @@
                     }, { responseType: 'blob' });
                     console.log("DEBUG: Risposta download playlist ricevuta");
                     
-                    const blob = new Blob([response.data], { type: 'text/plain' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = `${this.playlistName}.m3u`;
-                    link.click();
+                    if (response.status === 200) {
+                        console.log("DEBUG: Risposta download playlist ricevuta");
+                        const blob = new Blob([response.data], { type: 'text/plain' });
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = `${this.playlistName}.m3u`;
+                        link.click();
+                        
+                        this.getPlaylistHistory();
+                    } else {
+                        console.error("DEBUG: Errore nel download della playlist", response);
+                        alert('Si è verificato un errore durante il download della playlist. Riprova.');
+                    }
                 },
                 async sharePlaylist() {
                     const response = await axios.post('/share_playlist', {
@@ -480,6 +503,14 @@
                     const removedItem = this.playlist.splice(index, 1);
                     console.log("DEBUG: Elemento rimosso dalla playlist:", removedItem);
                 },
+
+                async getPlaylistHistory() {
+                    const response = await axios.get('/get_playlist_history');
+                    this.playlistHistory = response.data;
+                },
+            },
+            mounted() {
+                this.getPlaylistHistory();
             }
         });
     </script>
