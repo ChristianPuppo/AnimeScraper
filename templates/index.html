@@ -208,6 +208,8 @@
                     </div>
                     <div v-else class="progress-bar">
                         <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
+                        <div class="episode-count">{{ progress }}%</div>
+                        <div class="estimated-time" v-if="estimatedTime > 0">Tempo stimato: {{ formatTime(estimatedTime) }}</div>
                     </div>
                 </div>
             </div>
@@ -291,6 +293,8 @@
                 shareUrl: '',
                 shareId: null,
                 isShared: false,  // Nuova proprietà per controllare la visibilità della sezione di condivisione
+                estimatedTime: 0,  // Nuova proprietà per il tempo stimato
+                startTime: 0,
             },
             methods: {
                 async searchAnime() {
@@ -368,6 +372,8 @@
                     console.log("DEBUG: Aggiunta serie alla playlist iniziata");
                     this.loading = true;
                     this.progress = 0;
+                    this.startTime = Date.now();
+                    this.estimatedTime = 0;
                     try {
                         if (!this.selectedAnime) {
                             throw new Error("Nessuna serie selezionata");
@@ -382,6 +388,7 @@
                         const processedEpisodes = [];
 
                         this.progress = 5;
+                        this.updateEstimatedTime(5);
 
                         for (let i = 0; i < episodes.length; i++) {
                             const episode = episodes[i];
@@ -401,6 +408,7 @@
                             });
                             
                             this.progress = 5 + Math.round((i + 1) / episodes.length * 95);
+                            this.updateEstimatedTime(this.progress);
                         }
 
                         this.playlist.push({ title: title, episodes: processedEpisodes });
@@ -412,6 +420,7 @@
                     } finally {
                         this.loading = false;
                         this.progress = 0;
+                        this.estimatedTime = 0;
                     }
                 },
                 async downloadPlaylist() {
@@ -544,6 +553,18 @@
                     } else {
                         alert('Aggiungi almeno una serie alla playlist prima di aggiornare il nome.');
                     }
+                },
+
+                formatTime(seconds) {
+                    const minutes = Math.floor(seconds / 60);
+                    const remainingSeconds = Math.round(seconds % 60);
+                    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+                },
+
+                updateEstimatedTime(currentProgress) {
+                    const elapsedTime = (Date.now() - this.startTime) / 1000; // tempo trascorso in secondi
+                    const estimatedTotalTime = (elapsedTime / currentProgress) * 100;
+                    this.estimatedTime = Math.max(0, estimatedTotalTime - elapsedTime);
                 },
             },
             watch: {
