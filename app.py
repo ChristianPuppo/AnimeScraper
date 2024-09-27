@@ -224,10 +224,10 @@ def save_playlist():
             
             if episode_title:
                 print(f"DEBUG: Usando titolo TMDb per episodio {episode_number}: {episode_title}")
-                m3u_content += f"#EXTINF:-1,{episode_title} - {series_title}\n"
+                m3u_content += f"#EXTINF:-1,Ep. {episode_number} - {episode_title} - {series_title}\n"
             else:
                 print(f"DEBUG: Usando titolo generico per episodio {episode_number}")
-                m3u_content += f"#EXTINF:-1,Episodio {episode_number} - {series_title}\n"
+                m3u_content += f"#EXTINF:-1,Ep. {episode_number} - Episodio {episode_number} - {series_title}\n"
             
             m3u_content += f"{episode['url']}\n"
         
