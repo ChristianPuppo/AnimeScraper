@@ -261,7 +261,7 @@ def save_playlist():
             print(f"DEBUG: Nessun metadata trovato per {search_title}")
             display_title = series_title
             m3u_content += f"\n#EXTINF:-1 group-title=\"{display_title}\",{display_title}\n"
-            m3u_content += f"#EXTGRP:{display_title}\n"
+            tmdb_episodes = {ep['episode_number']: ep['name'] for ep in metadata['episodes']}
             tmdb_episodes = {}
         
         for i, episode in enumerate(series['episodes'], 1):
