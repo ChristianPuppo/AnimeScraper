@@ -221,7 +221,14 @@
                     <li v-for="(item, index) in playlist" :key="index" class="playlist-item mb-2">
                         <div v-if="!item.isRenaming" class="flex justify-between items-center">
                             <span v-text="item.title + ' - ' + item.episodes.length + ' episodi'"></span>
-                            <button @click="startRenaming(index)" class="btn btn-secondary text-white p-1 text-sm">Rinomina</button>
+                            <div>
+                                <button @click="startRenaming(index)" class="btn btn-secondary text-white p-1 text-sm mr-2">Rinomina</button>
+                                <button @click="removeFromPlaylist(index)" class="btn bg-red-500 hover:bg-red-600 text-white p-1 text-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                         <div v-else class="flex flex-col">
                             <input v-model="item.newTitle" class="input p-2 mb-2 w-full" placeholder="Nuovo titolo">
@@ -419,6 +426,11 @@
                         }
                     }
                     item.isRenaming = false;
+                },
+
+                removeFromPlaylist(index) {
+                    this.playlist.splice(index, 1);
+                    console.log("Elemento rimosso dalla playlist");
                 },
             }
         });
