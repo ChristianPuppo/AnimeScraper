@@ -19,7 +19,7 @@ load_dotenv()
 # Configurazione TMDb
 tmdb = TMDb()
 tmdb.api_key = os.getenv('TMDB_API_KEY')
-tmdb.language = 'it'
+tmdb.language = 'it,en'  # Modifica questa riga
 tv = TV()
 season = Season()
 
@@ -123,34 +123,10 @@ def get_series_metadata(title):
         search_title = re.sub(r'\s*(\(ITA\)|\(SUB ITA\)|\(TV\)|\(OAV\)|\(OVA\))\s*', '', search_title).strip()
         print(f"DEBUG: Titolo di ricerca modificato: {search_title}")
         
-        # Lista di possibili varianti del titolo
-        title_variants = [
-            search_title,
-            re.sub(r'[:\-–].*$', '', search_title).strip(),
-            ' '.join(search_title.split()[:3]),
-            ' '.join(search_title.split()[:2]),
-            search_title.split(':')[0].strip(),
-            re.sub(r'\s*\d+\s*$', '', search_title).strip(),
-        ]
-        
-        best_match = None
-        highest_ratio = 0
-        
-        for variant in title_variants:
-            print(f"DEBUG: Provando variante: {variant}")
-            search = tv.search(variant)
-            if search:
-                for result in search:
-                    ratio_original = fuzz.ratio(result.name.lower(), search_title.lower())
-                    ratio_italian = fuzz.ratio(result.original_name.lower(), search_title.lower())
-                    ratio = max(ratio_original, ratio_italian)
-                    print(f"DEBUG: Confronto - {result.name} (Somiglianza: {ratio}%)")
-                    if ratio > highest_ratio:
-                        highest_ratio = ratio
-                        best_match = result
-
-        if best_match and highest_ratio > 60:
-            print(f"DEBUG: Serie trovata su TMDb: {best_match.name} (Somiglianza: {highest_ratio}%)")
+        search = tv.search(search_title)
+        if search:
+            best_match = search[0]
+            print(f"DEBUG: Serie trovata su TMDb: {best_match.name}")
             details = tv.details(best_match.id)
             seasons = details.seasons
             episodes = []
@@ -159,10 +135,11 @@ def get_series_metadata(title):
                 season_episodes = Episode().get_episodes(best_match.id, s.season_number)
                 for ep in season_episodes:
                     print(f"DEBUG: Episodio {ep.episode_number}: {ep.name}")
+                    episode_name = ep.name if ep.name else f"Episodio {ep.episode_number}"
                     episodes.append({
                         'season_number': s.season_number,
                         'episode_number': ep.episode_number,
-                        'name': ep.name or f"Episodio {ep.episode_number}"
+                        'name': episode_name
                     })
             print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
             return {
