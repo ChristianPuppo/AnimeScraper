@@ -220,20 +220,28 @@ def save_playlist():
             year = metadata['first_air_date'][:4] if metadata.get('first_air_date') else ''
             genres = ', '.join(metadata.get('genres', []))
             
-            m3u_content += f"\n#EXTINF:-1 group-title=\"{italian_title}\" tvg-logo=\"{cover_image}\",{original_title} ({year})\n"
-            m3u_content += f"#EXTGRP:{italian_title}\n"
+            # Utilizziamo il titolo italiano se disponibile, altrimenti quello originale
+            # Se entrambi sono in giapponese (o non disponibili), usiamo il titolo dallo scraping
+            if is_japanese(italian_title) and is_japanese(original_title):
+                display_title = series_title
+            else:
+                display_title = italian_title if not is_japanese(italian_title) else original_title
+            
+            m3u_content += f"\n#EXTINF:-1 group-title=\"{display_title}\" tvg-logo=\"{cover_image}\",{display_title} ({year})\n"
+            m3u_content += f"#EXTGRP:{display_title}\n"
             m3u_content += f"#EXTDESC:{description}\n"
             m3u_content += f"#EXTGENRE:{genres}\n"
             
             if playlist_title == "Playlist Anime":
-                playlist_title = f"Playlist {italian_title}"
+                playlist_title = f"Playlist {display_title}"
 
             tmdb_episodes = {ep.episode_number: ep.name for ep in metadata['episodes']}
             print(f"DEBUG: Episodi trovati su TMDb: {tmdb_episodes}")
         else:
             print(f"DEBUG: Nessun metadata trovato per {series_title}")
-            m3u_content += f"\n#EXTINF:-1 group-title=\"{series_title}\",{series_title}\n"
-            m3u_content += f"#EXTGRP:{series_title}\n"
+            display_title = series_title
+            m3u_content += f"\n#EXTINF:-1 group-title=\"{display_title}\",{display_title}\n"
+            m3u_content += f"#EXTGRP:{display_title}\n"
             tmdb_episodes = {}
         
         for i, episode in enumerate(series['episodes'], 1):
@@ -246,8 +254,12 @@ def save_playlist():
                 episode_number = i
                 episode_title = f"Episodio {i}"
             
+            # Se il titolo dell'episodio è in giapponese, usiamo il formato generico
+            if is_japanese(episode_title):
+                episode_title = f"Episodio {episode_number}"
+            
             print(f"DEBUG: Titolo episodio {episode_number}: {episode_title}")
-            episode_title = f"E{episode_number:02d} - {episode_title} - {series_title}"
+            episode_title = f"E{episode_number:02d} - {episode_title} - {display_title}"
             
             m3u_content += f"#EXTINF:-1,{episode_title}\n"
             m3u_content += f"{episode['url']}\n"
@@ -260,6 +272,20 @@ def save_playlist():
         mimetype='text/plain',
         headers={'Content-Disposition': f'attachment; filename="{playlist_title}.m3u"'}
     )
+
+# Aggiungi questa funzione per verificare se una stringa contiene caratteri giapponesi
+def is_japanese(text):
+    if not text:
+        return False
+    # Intervalli Unicode per i caratteri giapponesi
+    japanese_ranges = [
+        (0x3040, 0x309F),  # Hiragana
+        (0x30A0, 0x30FF),  # Katakana
+        (0x4E00, 0x9FFF),  # Kanji
+        (0x3400, 0x4DBF),  # Kanji estesi A
+        (0xFF66, 0xFF9F),  # Katakana a mezza larghezza
+    ]
+    return any(any(start <= ord(char) <= end for start, end in japanese_ranges) for char in text)
 
 if __name__ == '__main__':
     app.run(debug=True)
