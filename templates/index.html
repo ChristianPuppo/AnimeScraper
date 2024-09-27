@@ -440,9 +440,10 @@
                         alert('Aggiungi almeno una serie alla playlist prima di condividerla.');
                         return;
                     }
-                    const response = await axios.post('/share_playlist', {
+                    const response = await axios.post('/update_shared_playlist', {
                         playlist: this.playlist,
-                        playlist_name: this.playlistName
+                        playlist_name: this.playlistName,
+                        share_id: this.shareId
                     });
                     this.shareUrl = response.data.share_url;
                     this.shareId = response.data.share_id;

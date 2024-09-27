@@ -321,5 +321,19 @@ def generate_m3u(share_id):
         headers={'Content-Disposition': f'attachment; filename="{playlist_name}.m3u"'}
     )
 
+@app.route('/update_shared_playlist', methods=['POST'])
+def update_shared_playlist():
+    playlist = request.json['playlist']
+    playlist_name = request.json['playlist_name']
+    share_id = request.json.get('share_id')
+
+    if not share_id:
+        share_id = str(uuid.uuid4())
+
+    shared_playlists[share_id] = {'playlist': playlist, 'name': playlist_name}
+    share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
+    
+    return jsonify({'share_url': share_url, 'share_id': share_id})
+
 if __name__ == '__main__':
     app.run(debug=True)
