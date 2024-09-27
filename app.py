@@ -8,8 +8,6 @@ import os
 from dotenv import load_dotenv
 from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
-from googletrans import Translator
-import jaconv
 
 app = Flask(__name__)
 
@@ -128,19 +126,12 @@ def get_series_metadata(title):
         # Lista di possibili varianti del titolo
         title_variants = [
             search_title,
-            re.sub(r'[:\-–].*$', '', search_title).strip(),  # Prendi solo la prima parte del titolo
-            ' '.join(search_title.split()[:3]),  # Prendi solo le prime tre parole
-            ' '.join(search_title.split()[:2]),  # Prendi solo le prime due parole
-            search_title.split(':')[0].strip(),  # Prendi la parte prima dei due punti
-            re.sub(r'\s*\d+\s*$', '', search_title).strip(),  # Rimuovi numeri alla fine del titolo
+            re.sub(r'[:\-–].*$', '', search_title).strip(),
+            ' '.join(search_title.split()[:3]),
+            ' '.join(search_title.split()[:2]),
+            search_title.split(':')[0].strip(),
+            re.sub(r'\s*\d+\s*$', '', search_title).strip(),
         ]
-        
-        # Aggiungi varianti tradotte se il titolo sembra essere in giapponese
-        if is_japanese(search_title):
-            translator = Translator()
-            romaji = jaconv.kata2roma(jaconv.hira2kata(search_title))
-            translated = translator.translate(search_title, dest='en').text
-            title_variants.extend([romaji, translated])
         
         best_match = None
         highest_ratio = 0
@@ -150,7 +141,6 @@ def get_series_metadata(title):
             search = tv.search(variant)
             if search:
                 for result in search:
-                    # Confronta sia con il titolo originale che con quello in italiano
                     ratio_original = fuzz.ratio(result.name.lower(), search_title.lower())
                     ratio_italian = fuzz.ratio(result.original_name.lower(), search_title.lower())
                     ratio = max(ratio_original, ratio_italian)
@@ -246,7 +236,7 @@ def save_playlist():
         
         for i, episode in enumerate(series['episodes'], 1):
             episode_number = i
-            episode_title = tmdb_episodes.get(episode_number, episode['title'])
+            episode_title = tmdb_episodes.get(episode_number, f"Episodio {episode_number}")
             
             m3u_content += f"#EXTINF:-1,{episode_title} - {series_title}\n"
             m3u_content += f"{episode['url']}\n"
@@ -259,20 +249,6 @@ def save_playlist():
         mimetype='text/plain',
         headers={'Content-Disposition': f'attachment; filename="{playlist_title}.m3u"'}
     )
-
-# Aggiungi questa funzione per verificare se una stringa contiene caratteri giapponesi
-def is_japanese(text):
-    if not text:
-        return False
-    # Intervalli Unicode per i caratteri giapponesi
-    japanese_ranges = [
-        (0x3040, 0x309F),  # Hiragana
-        (0x30A0, 0x30FF),  # Katakana
-        (0x4E00, 0x9FFF),  # Kanji
-        (0x3400, 0x4DBF),  # Kanji estesi A
-        (0xFF66, 0xFF9F),  # Katakana a mezza larghezza
-    ]
-    return any(any(start <= ord(char) <= end for start, end in japanese_ranges) for char in text)
 
 if __name__ == '__main__':
     app.run(debug=True)
