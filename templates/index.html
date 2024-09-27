@@ -223,13 +223,7 @@
                     <div v-else class="progress-bar">
                         <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
                         <div class="progress-info">
-                            <span class="episode-count">{{ progress }}%</span>
-                            <span class="estimated-time" v-if="estimatedTime > 0">
-                                ETA: {% raw %}{{ formatTime(estimatedTime) }}{% endraw %}
-                            </span>
-                        </div>
-                        <div class="debug-info">
-                            Debug: Progress: {{ progress }}, EstimatedTime: {{ estimatedTime }}, Formatted: {% raw %}{{ formatTime(estimatedTime) }}{% endraw %}
+                            <span class="episode-count">{% raw %}{{ processedEpisodes }}/{{ totalEpisodes }}{% endraw %}</span>
                         </div>
                     </div>
                 </div>
@@ -316,6 +310,8 @@
                 isShared: false,  // Nuova proprietà per controllare la visibilità della sezione di condivisione
                 estimatedTime: 0,  // Nuova proprietà per il tempo stimato
                 startTime: 0,
+                processedEpisodes: 0,
+                totalEpisodes: 0,
             },
             methods: {
                 async searchAnime() {
@@ -393,8 +389,8 @@
                     console.log("Debug: addSeriesToPlaylist started");
                     this.loading = true;
                     this.progress = 0;
+                    this.processedEpisodes = 0;
                     this.startTime = Date.now();
-                    this.estimatedTime = 0;
                     try {
                         if (!this.selectedAnime) {
                             throw new Error("Nessuna serie selezionata");
@@ -404,13 +400,10 @@
                         const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
                         console.log("DEBUG: Risposta episodi per playlist:", response.data);
                         const episodes = response.data;
+                        this.totalEpisodes = episodes.length;
 
                         const title = this.selectedAnime.title;
                         const processedEpisodes = [];
-
-                        this.progress = 5;
-                        this.updateEstimatedTime(5);
-                        console.log("Debug: Initial progress set to 5%, estimatedTime:", this.estimatedTime);
 
                         for (let i = 0; i < episodes.length; i++) {
                             const episode = episodes[i];
@@ -429,9 +422,9 @@
                                 url: episodeUrl
                             });
                             
-                            this.progress = 5 + Math.round((i + 1) / episodes.length * 95);
-                            this.updateEstimatedTime(this.progress);
-                            console.log(`Debug: Episode ${i+1}/${episodes.length} processed. Progress: ${this.progress}%, estimatedTime: ${this.estimatedTime}`);
+                            this.processedEpisodes = i + 1;
+                            this.progress = Math.round((this.processedEpisodes / this.totalEpisodes) * 100);
+                            console.log(`Debug: Episode ${this.processedEpisodes}/${this.totalEpisodes} processed. Progress: ${this.progress}%`);
                         }
 
                         this.playlist.push({ title: title, episodes: processedEpisodes });
@@ -443,8 +436,9 @@
                     } finally {
                         this.loading = false;
                         this.progress = 0;
-                        this.estimatedTime = 0;
-                        console.log("Debug: addSeriesToPlaylist finished. Final estimatedTime:", this.estimatedTime);
+                        this.processedEpisodes = 0;
+                        this.totalEpisodes = 0;
+                        console.log("Debug: addSeriesToPlaylist finished");
                     }
                 },
                 async downloadPlaylist() {
