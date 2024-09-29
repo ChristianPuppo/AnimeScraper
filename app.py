@@ -66,21 +66,30 @@ def download_series_task(task_id, anime_url, title):
                         output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
                         download_mp4(video_url, output_file)
                         successful_downloads += 1
+                        
+                        # Aggiorna lo stato del task dopo ogni episodio scaricato
+                        download_tasks[task_id]['progress'] = (successful_downloads / total_episodes) * 100
+                        download_tasks[task_id]['current'] = successful_downloads
+                        download_tasks[task_id]['total'] = total_episodes
+                        print(f"Episodio {i+1}/{total_episodes} scaricato con successo")
             except Exception as e:
                 print(f"Errore nel download dell'episodio {i+1}: {str(e)}")
             
-            download_tasks[task_id]['progress'] = (successful_downloads / total_episodes) * 100
-            download_tasks[task_id]['current'] = successful_downloads
-            download_tasks[task_id]['total'] = total_episodes
+            # Breve pausa per evitare di sovraccaricare il server
+            time.sleep(1)
 
-        zip_file = os.path.join(temp_dir, f'{title}.zip')
-        create_zip(temp_dir, zip_file)
-        
-        permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
-        os.rename(zip_file, permanent_zip_file)
-        
-    download_tasks[task_id]['file_path'] = permanent_zip_file
-    download_tasks[task_id]['state'] = 'SUCCESS'
+        if successful_downloads > 0:
+            zip_file = os.path.join(temp_dir, f'{title}.zip')
+            create_zip(temp_dir, zip_file)
+            
+            permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
+            os.rename(zip_file, permanent_zip_file)
+            
+            download_tasks[task_id]['file_path'] = permanent_zip_file
+            download_tasks[task_id]['state'] = 'SUCCESS'
+        else:
+            download_tasks[task_id]['state'] = 'FAILURE'
+            download_tasks[task_id]['error'] = 'Nessun episodio scaricato con successo'
 
 @app.route('/download_series', methods=['POST'])
 def download_series():
@@ -118,9 +127,11 @@ def download_file(task_id):
 
 def download_mp4(mp4_url, output_file):
     response = requests.get(mp4_url, stream=True)
+    response.raise_for_status()
     with open(output_file, 'wb') as f:
         for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
+            if chunk:
+                f.write(chunk)
 
 @app.route('/rename_title', methods=['POST'])
 def rename_title():
@@ -180,9 +191,12 @@ def extract_video_url(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
+        print(f"Cercando URL video in: {url}")
+
         iframe = soup.find('iframe')
         if iframe and 'src' in iframe.attrs:
             iframe_src = iframe['src']
+            print(f"Trovato iframe con src: {iframe_src}")
             iframe_response = requests.get(iframe_src)
             iframe_response.raise_for_status()
             video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
@@ -191,22 +205,27 @@ def extract_video_url(url):
             for script in iframe_soup.find_all('script'):
                 match = re.search(video_pattern, str(script))
                 if match:
+                    print(f"URL video trovato: {match.group(0)}")
                     return match.group(0)
 
             match = re.search(video_pattern, iframe_response.text)
             if match:
+                print(f"URL video trovato: {match.group(0)}")
                 return match.group(0)
 
         video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
         for script in soup.find_all('script'):
             match = re.search(video_pattern, str(script))
             if match:
+                print(f"URL video trovato: {match.group(0)}")
                 return match.group(0)
 
         match = re.search(video_pattern, response.text)
         if match:
+            print(f"URL video trovato: {match.group(0)}")
             return match.group(0)
 
+        print("Nessun URL video trovato")
     except requests.RequestException as e:
         print(f"Errore nell'estrazione dell'URL video: {e}")
 
