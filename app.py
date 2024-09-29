@@ -21,7 +21,7 @@ from werkzeug.serving import run_simple
 import concurrent.futures
 import aiofiles
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -77,7 +77,6 @@ async def get_file_size(session, url):
         return int(response.headers.get('Content-Length', 0))
 
 async def download_mp4(mp4_url, output_file, task_id, current_episode):
-    logger.info(f"Scaricamento file MP4: {mp4_url}")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
@@ -89,12 +88,12 @@ async def download_mp4(mp4_url, output_file, task_id, current_episode):
                 async for chunk in response.content.iter_chunked(1024*1024):  # 1MB chunks
                     await f.write(chunk)
                     downloaded_size += len(chunk)
-                    update_task_status(task_id, downloaded_size, current_episode)
-            logger.info(f"File MP4 scaricato con successo: {output_file}")
+                    if downloaded_size % (10 * 1024 * 1024) == 0:  # Aggiorna ogni 10MB
+                        update_task_status(task_id, downloaded_size, current_episode)
+            update_task_status(task_id, downloaded_size, current_episode)
             return downloaded_size
 
 async def download_series_task(task_id, anime_url, title):
-    logger.info(f"Iniziando il download della serie: {title}")
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
@@ -110,10 +109,6 @@ async def download_series_task(task_id, anime_url, title):
                     output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
                     task = download_mp4(video_url, output_file, task_id, i)
                     tasks.append(task)
-                else:
-                    logger.warning(f"Nessun URL video trovato per l'episodio {i}")
-            else:
-                logger.warning(f"Nessun URL di streaming trovato per l'episodio {i}")
 
         results = await asyncio.gather(*tasks)
         total_downloaded_size = sum(results)
@@ -126,21 +121,19 @@ async def download_series_task(task_id, anime_url, title):
             os.rename(zip_file, permanent_zip_file)
             
             update_task_status(task_id, total_downloaded_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
-            logger.info(f"Download completato con successo. Dimensione totale: {total_downloaded_size / (1024*1024):.2f} MB")
         else:
             update_task_status(task_id, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo')
-            logger.error("Nessun episodio scaricato con successo")
 
-def update_task_status(task_id, downloaded_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None):
+def update_task_status(task_id, downloaded_size, current_episode, total_episodes=None, state='PENDING', file_path=None, error=None):
     task = download_tasks.get(task_id, {})
     task['state'] = state
-    task['downloaded_size'] = max(task.get('downloaded_size', 0), downloaded_size)  # Usa il valore massimo
-    task['current_episode'] = max(task.get('current_episode', 0), current_episode)  # Usa il valore massimo
-    task['total_episodes'] = total_episodes
+    task['downloaded_size'] = max(task.get('downloaded_size', 0), downloaded_size)
+    task['current_episode'] = max(task.get('current_episode', 0), current_episode)
+    if total_episodes is not None:
+        task['total_episodes'] = total_episodes
     task['file_path'] = file_path
     task['error'] = error
     download_tasks[task_id] = task
-    logger.info(f"Stato del task {task_id} aggiornato: {task}")
 
 @app.route('/download_series', methods=['POST'])
 def download_series():
@@ -165,7 +158,6 @@ def download_series():
 @app.route('/task_status/<task_id>')
 def task_status(task_id):
     task = download_tasks.get(task_id, {})
-    logger.info(f"Richiesta stato del task {task_id}: {task}")
     return jsonify(task)
 
 @app.route('/download_file/<task_id>')

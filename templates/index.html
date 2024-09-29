@@ -683,9 +683,9 @@
                             console.log("Stato del task:", taskInfo);
                             
                             this.downloadedSize = taskInfo.downloaded_size || 0;
-                            this.progress = taskInfo.total_episodes > 0 ? (taskInfo.current_episode / taskInfo.total_episodes) * 100 : 0;
-                            this.processedEpisodes = taskInfo.current_episode || 0;
                             this.totalEpisodes = taskInfo.total_episodes || 0;
+                            this.processedEpisodes = taskInfo.current_episode || 0;
+                            this.progress = this.totalEpisodes > 0 ? (this.processedEpisodes / this.totalEpisodes) * 100 : 0;
                             
                             if (taskInfo.state === 'SUCCESS') {
                                 this.loading = false;
@@ -697,12 +697,10 @@
                                 break;
                             }
                             
-                            await new Promise(resolve => setTimeout(resolve, 1000));  // Attendi 1 secondo prima di controllare di nuovo
+                            await new Promise(resolve => setTimeout(resolve, 2000));  // Attendi 2 secondi prima di controllare di nuovo
                         } catch (error) {
                             console.error('Errore nel controllo dello stato del task:', error);
-                            this.loading = false;
-                            alert('Si è verificato un errore nel controllo dello stato del download.');
-                            break;
+                            await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi in caso di errore
                         }
                     }
                 },
