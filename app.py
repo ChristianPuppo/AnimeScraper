@@ -93,16 +93,14 @@ async def download_mp4(mp4_url, output_file, task_id, current_episode):
                     async for chunk in response.content.iter_chunked(1024*1024):  # 1MB chunks
                         await f.write(chunk)
                         downloaded_size += len(chunk)
-                        if downloaded_size % (10 * 1024 * 1024) == 0:  # Aggiorna ogni 10MB
-                            update_task_status(task_id, downloaded_size, current_episode)
-                update_task_status(task_id, downloaded_size, current_episode)
+                        update_task_status(task_id, downloaded_size, current_episode)
                 logger.info(f"Episodio {current_episode} scaricato con successo. Dimensione: {downloaded_size}")
                 return downloaded_size
     except Exception as e:
         logger.error(f"Errore nel download dell'episodio {current_episode}: {str(e)}")
         return 0
 
-async def download_series_task(task_id, anime_url, title):
+def download_series_task(task_id, anime_url, title):
     logger.info(f"Inizio download della serie: {title}")
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
@@ -110,18 +108,16 @@ async def download_series_task(task_id, anime_url, title):
     update_task_status(task_id, 0, 0, total_episodes)
     
     with tempfile.TemporaryDirectory() as temp_dir:
-        tasks = []
         for i, episode in enumerate(episodes, 1):
             streaming_url = get_streaming_url(episode['url'])
             if streaming_url:
                 video_url = extract_video_url(streaming_url)
                 if video_url:
                     output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
-                    task = download_mp4(video_url, output_file, task_id, i)
-                    tasks.append(task)
+                    downloaded_size = asyncio.run(download_mp4(video_url, output_file, task_id, i))
+                    update_task_status(task_id, downloaded_size, i)
 
-        results = await asyncio.gather(*tasks)
-        total_downloaded_size = sum(results)
+        total_downloaded_size = sum(os.path.getsize(os.path.join(temp_dir, f)) for f in os.listdir(temp_dir) if f.endswith('.mp4'))
 
         if total_downloaded_size > 0:
             zip_file = os.path.join(temp_dir, f'{title}.zip')
@@ -168,7 +164,7 @@ def download_series():
     
     # Avvia il download in un thread separato
     executor = ThreadPoolExecutor(max_workers=1)
-    executor.submit(asyncio.run, download_series_task(task_id, anime_url, title))
+    executor.submit(download_series_task, task_id, anime_url, title)
     
     logger.info(f"Task di download avviato: {task_id}")
     return jsonify({'task_id': task_id}), 202
