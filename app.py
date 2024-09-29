@@ -147,10 +147,12 @@ def download_series():
     task_id = str(uuid.uuid4())
     download_tasks[task_id] = {
         'state': 'PENDING',
-        'progress': 0,
-        'current': 0,
-        'total': 0,
-        'file_path': None
+        'downloaded_size': 0,
+        'total_size': 0,
+        'current_episode': 0,
+        'total_episodes': 0,
+        'file_path': None,
+        'error': None
     }
     
     thread = threading.Thread(target=download_series_task, args=(task_id, anime_url, title))
