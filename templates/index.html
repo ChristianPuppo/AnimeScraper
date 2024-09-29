@@ -697,9 +697,6 @@
                 },
                 
                 async checkTaskStatus(taskId) {
-                    let retryCount = 0;
-                    const maxRetries = 30;
-                    
                     while (true) {
                         try {
                             const response = await axios.get(`/task_status/${taskId}`);
@@ -729,16 +726,10 @@
                                 break;
                             }
                             
-                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            await new Promise(resolve => setTimeout(resolve, 1000));  // Controlla ogni secondo
                         } catch (error) {
                             console.error('Errore nel controllo dello stato del task:', error);
-                            retryCount++;
-                            if (retryCount >= maxRetries) {
-                                this.loading = false;
-                                alert('Si sono verificati problemi nel controllo dello stato del download. Il processo potrebbe richiedere più tempo del previsto.');
-                                break;
-                            }
-                            await new Promise(resolve => setTimeout(resolve, 5000));
+                            await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi in caso di errore
                         }
                     }
                 },

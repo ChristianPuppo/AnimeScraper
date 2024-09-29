@@ -118,14 +118,22 @@ def download_series_task(task_id, anime_url, title):
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
-    # Calcola la dimensione totale in modo asincrono
-    total_size = asyncio.run(get_total_size(episodes))
+    # Calcola la dimensione totale in modo sincrono
+    total_size = sum(get_file_size_sync(get_streaming_url(episode['url'])) for episode in episodes)
     
     update_task_status(task_id, 0, 0, total_episodes, total_size=total_size)
     
     with tempfile.TemporaryDirectory() as temp_dir:
-        results = asyncio.run(download_episodes(episodes, temp_dir, task_id))
-        total_downloaded_size = sum(results)
+        for i, episode in enumerate(episodes, 1):
+            streaming_url = get_streaming_url(episode['url'])
+            if streaming_url:
+                video_url = extract_video_url(streaming_url)
+                if video_url:
+                    output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
+                    downloaded_size = download_mp4_sync(video_url, output_file, task_id, i)
+                    update_task_status(task_id, downloaded_size, i, total_episodes, total_size=total_size)
+
+        total_downloaded_size = sum(os.path.getsize(os.path.join(temp_dir, f)) for f in os.listdir(temp_dir) if f.endswith('.mp4'))
 
         if total_downloaded_size > 0:
             zip_file = os.path.join(temp_dir, f'{title}.zip')
@@ -139,6 +147,35 @@ def download_series_task(task_id, anime_url, title):
         else:
             update_task_status(task_id, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo', total_size=total_size)
             logger.error(f"Nessun episodio scaricato con successo per la serie: {title}")
+
+def get_file_size_sync(url):
+    try:
+        response = requests.head(url)
+        return int(response.headers.get('Content-Length', 0))
+    except:
+        return 0
+
+def download_mp4_sync(mp4_url, output_file, task_id, current_episode):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    try:
+        with requests.get(mp4_url, headers=headers, stream=True) as response:
+            response.raise_for_status()
+            file_size = int(response.headers.get('content-length', 0))
+            downloaded_size = 0
+            with open(output_file, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded_size += len(chunk)
+                        if downloaded_size % (1024 * 1024) == 0:  # Aggiorna ogni 1MB
+                            update_task_status(task_id, downloaded_size, current_episode)
+            logger.info(f"Episodio {current_episode} scaricato con successo. Dimensione: {downloaded_size}")
+            return downloaded_size
+    except Exception as e:
+        logger.error(f"Errore nel download dell'episodio {current_episode}: {str(e)}")
+        return 0
 
 def update_task_status(task_id, downloaded_size, current_episode, total_episodes=None, state='PENDING', file_path=None, error=None, total_size=None, added_episodes=None):
     task = download_tasks.get(task_id, {})
@@ -175,8 +212,8 @@ def download_series():
     }
     
     # Avvia il download in un thread separato
-    executor = ThreadPoolExecutor(max_workers=1)
-    executor.submit(download_series_task, task_id, anime_url, title)
+    thread = threading.Thread(target=download_series_task, args=(task_id, anime_url, title))
+    thread.start()
     
     logger.info(f"Task di download avviato: {task_id}")
     return jsonify({'task_id': task_id}), 202
