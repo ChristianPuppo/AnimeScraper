@@ -669,12 +669,15 @@
                         await this.checkTaskStatus(taskId);
                     } catch (error) {
                         console.error('Errore nell\'avvio del download della serie:', error);
-                        alert('Si è verificato un errore nell\'avvio del download della serie. Riprova.');
+                        alert('Si è verificato un errore nell\'avvio del download della serie. Il processo potrebbe richiedere più tempo del previsto. Controlla lo stato del download nella pagina di stato.');
                         this.loading = false;
                     }
                 },
                 
                 async checkTaskStatus(taskId) {
+                    let retryCount = 0;
+                    const maxRetries = 3;
+                    
                     while (true) {
                         try {
                             const response = await axios.get(`/task_status/${taskId}`);
@@ -697,10 +700,16 @@
                                 break;
                             }
                             
-                            await new Promise(resolve => setTimeout(resolve, 2000));  // Attendi 2 secondi prima di controllare di nuovo
+                            await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi prima di controllare di nuovo
                         } catch (error) {
                             console.error('Errore nel controllo dello stato del task:', error);
-                            await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi in caso di errore
+                            retryCount++;
+                            if (retryCount >= maxRetries) {
+                                this.loading = false;
+                                alert('Si sono verificati problemi nel controllo dello stato del download. Il processo potrebbe richiedere più tempo del previsto. Controlla lo stato del download nella pagina di stato.');
+                                break;
+                            }
+                            await new Promise(resolve => setTimeout(resolve, 10000));  // Attendi 10 secondi in caso di errore
                         }
                     }
                 },

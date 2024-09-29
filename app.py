@@ -20,8 +20,9 @@ import asyncio
 from werkzeug.serving import run_simple
 import concurrent.futures
 import aiofiles
+from concurrent.futures import ThreadPoolExecutor
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)  # Cambiato da INFO a WARNING
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -88,7 +89,7 @@ async def download_mp4(mp4_url, output_file, task_id, current_episode):
                 async for chunk in response.content.iter_chunked(1024*1024):  # 1MB chunks
                     await f.write(chunk)
                     downloaded_size += len(chunk)
-                    if downloaded_size % (10 * 1024 * 1024) == 0:  # Aggiorna ogni 10MB
+                    if downloaded_size % (50 * 1024 * 1024) == 0:  # Aggiorna ogni 50MB
                         update_task_status(task_id, downloaded_size, current_episode)
             update_task_status(task_id, downloaded_size, current_episode)
             return downloaded_size
@@ -151,7 +152,9 @@ def download_series():
         'error': None
     }
     
-    asyncio.run(download_series_task(task_id, anime_url, title))
+    # Esegui il download in un thread separato
+    executor = ThreadPoolExecutor(max_workers=1)
+    executor.submit(asyncio.run, download_series_task(task_id, anime_url, title))
     
     return jsonify({'task_id': task_id}), 202
 
