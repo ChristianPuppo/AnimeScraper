@@ -59,7 +59,8 @@ def download_series_task(task_id, anime_url, title):
     logger.info(f"Iniziando il download della serie: {title}")
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
-    successful_downloads = 0
+    total_size = 0
+    downloaded_size = 0
 
     with tempfile.TemporaryDirectory() as temp_dir:
         for i, episode in enumerate(episodes):
@@ -70,14 +71,13 @@ def download_series_task(task_id, anime_url, title):
                     video_url = extract_video_url(streaming_url)
                     if video_url:
                         output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
-                        download_mp4(video_url, output_file)
-                        successful_downloads += 1
+                        episode_size = download_mp4(video_url, output_file, task_id)
+                        total_size += episode_size
+                        downloaded_size += episode_size
                         
                         # Aggiorna lo stato del task dopo ogni episodio scaricato
-                        download_tasks[task_id]['progress'] = (successful_downloads / total_episodes) * 100
-                        download_tasks[task_id]['current'] = successful_downloads
-                        download_tasks[task_id]['total'] = total_episodes
-                        logger.info(f"Episodio {i+1}/{total_episodes} scaricato con successo. Progresso: {download_tasks[task_id]['progress']}%")
+                        update_task_status(task_id, downloaded_size, total_size, i+1, total_episodes)
+                        logger.info(f"Episodio {i+1}/{total_episodes} scaricato con successo. Dimensione: {episode_size / (1024*1024):.2f} MB")
                     else:
                         logger.warning(f"Nessun URL video trovato per l'episodio {i+1}")
                 else:
@@ -88,20 +88,30 @@ def download_series_task(task_id, anime_url, title):
             # Breve pausa per evitare di sovraccaricare il server
             time.sleep(1)
 
-        if successful_downloads > 0:
+        if downloaded_size > 0:
             zip_file = os.path.join(temp_dir, f'{title}.zip')
             create_zip(temp_dir, zip_file)
             
             permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
             os.rename(zip_file, permanent_zip_file)
             
-            download_tasks[task_id]['file_path'] = permanent_zip_file
-            download_tasks[task_id]['state'] = 'SUCCESS'
-            logger.info(f"Download completato con successo. {successful_downloads}/{total_episodes} episodi scaricati.")
+            update_task_status(task_id, downloaded_size, total_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
+            logger.info(f"Download completato con successo. Dimensione totale: {downloaded_size / (1024*1024):.2f} MB")
         else:
-            download_tasks[task_id]['state'] = 'FAILURE'
-            download_tasks[task_id]['error'] = 'Nessun episodio scaricato con successo'
+            update_task_status(task_id, 0, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo')
             logger.error("Nessun episodio scaricato con successo")
+
+def update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None):
+    download_tasks[task_id] = {
+        'state': state,
+        'downloaded_size': downloaded_size,
+        'total_size': total_size,
+        'current_episode': current_episode,
+        'total_episodes': total_episodes,
+        'file_path': file_path,
+        'error': error
+    }
+    logger.info(f"Stato del task {task_id} aggiornato: {download_tasks[task_id]}")
 
 @app.route('/download_series', methods=['POST'])
 def download_series():
@@ -126,7 +136,7 @@ def download_series():
 @app.route('/task_status/<task_id>')
 def task_status(task_id):
     task = download_tasks.get(task_id, {})
-    logger.info(f"Stato del task {task_id}: {task}")
+    logger.info(f"Richiesta stato del task {task_id}: {task}")
     return jsonify(task)
 
 @app.route('/download_file/<task_id>')
@@ -138,17 +148,23 @@ def download_file(task_id):
     else:
         return "Il file non è ancora pronto per il download", 404
 
-def download_mp4(mp4_url, output_file):
+def download_mp4(mp4_url, output_file, task_id):
     logger.info(f"Scaricamento file MP4: {mp4_url}")
     response = requests.get(mp4_url, stream=True)
     response.raise_for_status()
     total_size = int(response.headers.get('content-length', 0))
-    block_size = 1024  # 1 KB
+    block_size = 1024 * 1024  # 1 MB
+    downloaded_size = 0
     with open(output_file, 'wb') as f:
         for data in response.iter_content(block_size):
             size = f.write(data)
-            logger.debug(f"Scaricati {size} bytes")
+            downloaded_size += size
+            if total_size > 0:
+                progress = (downloaded_size / total_size) * 100
+                logger.debug(f"Progresso download: {progress:.2f}%")
+                update_task_status(task_id, downloaded_size, total_size, download_tasks[task_id]['current_episode'], download_tasks[task_id]['total_episodes'])
     logger.info(f"File MP4 scaricato con successo: {output_file}")
+    return downloaded_size
 
 @app.route('/rename_title', methods=['POST'])
 def rename_title():

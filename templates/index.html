@@ -275,10 +275,10 @@
                     <div v-if="!loading && progress === 0" @click="downloadSeries" class="btn btn-secondary text-white p-3 full-width-btn mt-2">
                         <span>Scarica Serie</span>
                     </div>
-                    <div v-else class="progress-bar">
+                    <div v-if="loading" class="progress-bar">
                         <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
                         <div class="progress-info">
-                            <span class="episode-count">{% raw %}{{ processedEpisodes }}/{{ totalEpisodes }}{% endraw %}</span>
+                            <span class="download-size">{% raw %}{{ formatSize(downloadedSize) }} / {{ formatSize(totalSize) }}{% endraw %}</span>
                         </div>
                     </div>
                 </div>
@@ -367,6 +367,8 @@
                 startTime: 0,
                 processedEpisodes: 0,
                 totalEpisodes: 0,
+                downloadedSize: 0,
+                totalSize: 0,
             },
             methods: {
                 async searchAnime() {
@@ -679,17 +681,19 @@
                         
                         console.log("Stato del task:", taskInfo);
                         
-                        this.progress = taskInfo.progress || 0;
-                        this.processedEpisodes = taskInfo.current || 0;
-                        this.totalEpisodes = taskInfo.total || 0;
+                        this.downloadedSize = taskInfo.downloaded_size || 0;
+                        this.totalSize = taskInfo.total_size || 0;
+                        this.progress = this.totalSize > 0 ? (this.downloadedSize / this.totalSize) * 100 : 0;
+                        this.processedEpisodes = taskInfo.current_episode || 0;
+                        this.totalEpisodes = taskInfo.total_episodes || 0;
                         
                         if (taskInfo.state === 'SUCCESS') {
                             this.loading = false;
                             window.location.href = `/download_file/${taskId}`;
-                            alert(`Download completato! ${this.processedEpisodes} episodi su ${this.totalEpisodes} scaricati con successo.`);
+                            alert(`Download completato! Dimensione totale: ${this.formatSize(this.downloadedSize)}`);
                         } else if (taskInfo.state === 'FAILURE') {
                             this.loading = false;
-                            alert('Si è verificato un errore durante il download della serie.');
+                            alert('Si è verificato un errore durante il download della serie: ' + (taskInfo.error || 'Errore sconosciuto'));
                         } else {
                             // Continua a controllare lo stato del task
                             setTimeout(() => this.checkTaskStatus(taskId), 2000);
@@ -699,6 +703,14 @@
                         this.loading = false;
                         alert('Si è verificato un errore nel controllo dello stato del download.');
                     }
+                },
+                
+                formatSize(bytes) {
+                    if (bytes === 0) return '0 Bytes';
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
                 },
             },
             watch: {
