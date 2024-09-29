@@ -678,7 +678,7 @@
                 
                 async checkTaskStatus(taskId) {
                     let retryCount = 0;
-                    const maxRetries = 30;  // Aumentato il numero di tentativi
+                    const maxRetries = 30;
                     
                     while (true) {
                         try {
@@ -694,9 +694,10 @@
                             }
                             
                             this.downloadedSize = taskInfo.downloaded_size || 0;
+                            this.totalSize = taskInfo.total_size || 0;
                             this.totalEpisodes = taskInfo.total_episodes || 0;
                             this.processedEpisodes = taskInfo.current_episode || 0;
-                            this.progress = this.totalEpisodes > 0 ? (this.processedEpisodes / this.totalEpisodes) * 100 : 0;
+                            this.progress = this.totalSize > 0 ? (this.downloadedSize / this.totalSize) * 100 : 0;
                             
                             if (taskInfo.state === 'SUCCESS') {
                                 this.loading = false;
@@ -708,7 +709,7 @@
                                 break;
                             }
                             
-                            await new Promise(resolve => setTimeout(resolve, 2000));  // Controlla ogni 2 secondi
+                            await new Promise(resolve => setTimeout(resolve, 2000));
                         } catch (error) {
                             console.error('Errore nel controllo dello stato del task:', error);
                             retryCount++;
@@ -717,7 +718,7 @@
                                 alert('Si sono verificati problemi nel controllo dello stato del download. Il processo potrebbe richiedere più tempo del previsto.');
                                 break;
                             }
-                            await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi in caso di errore
+                            await new Promise(resolve => setTimeout(resolve, 5000));
                         }
                     }
                 },

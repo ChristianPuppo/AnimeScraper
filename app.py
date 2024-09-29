@@ -105,7 +105,10 @@ def download_series_task(task_id, anime_url, title):
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
-    update_task_status(task_id, 0, 0, total_episodes)
+    # Calcola la dimensione totale in modo asincrono
+    total_size = asyncio.run(get_total_size(episodes))
+    
+    update_task_status(task_id, 0, 0, total_episodes, total_size=total_size)
     
     with tempfile.TemporaryDirectory() as temp_dir:
         for i, episode in enumerate(episodes, 1):
@@ -115,7 +118,7 @@ def download_series_task(task_id, anime_url, title):
                 if video_url:
                     output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
                     downloaded_size = asyncio.run(download_mp4(video_url, output_file, task_id, i))
-                    update_task_status(task_id, downloaded_size, i)
+                    update_task_status(task_id, downloaded_size, i, total_size=total_size)
 
         total_downloaded_size = sum(os.path.getsize(os.path.join(temp_dir, f)) for f in os.listdir(temp_dir) if f.endswith('.mp4'))
 
@@ -126,19 +129,21 @@ def download_series_task(task_id, anime_url, title):
             permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
             os.rename(zip_file, permanent_zip_file)
             
-            update_task_status(task_id, total_downloaded_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
+            update_task_status(task_id, total_downloaded_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file, total_size=total_size)
             logger.info(f"Download della serie completato con successo: {title}")
         else:
-            update_task_status(task_id, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo')
+            update_task_status(task_id, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo', total_size=total_size)
             logger.error(f"Nessun episodio scaricato con successo per la serie: {title}")
 
-def update_task_status(task_id, downloaded_size, current_episode, total_episodes=None, state='PENDING', file_path=None, error=None):
+def update_task_status(task_id, downloaded_size, current_episode, total_episodes=None, state='PENDING', file_path=None, error=None, total_size=None):
     task = download_tasks.get(task_id, {})
     task['state'] = state
     task['downloaded_size'] = downloaded_size
     task['current_episode'] = current_episode
     if total_episodes is not None:
         task['total_episodes'] = total_episodes
+    if total_size is not None:
+        task['total_size'] = total_size
     task['file_path'] = file_path
     task['error'] = error
     task['last_update'] = time.time()
