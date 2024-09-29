@@ -661,45 +661,41 @@
                         const response = await axios.post('/download_series', {
                             anime_url: this.selectedAnime.url,
                             title: this.selectedAnime.title
-                        }, {
-                            responseType: 'blob',
-                            onDownloadProgress: (progressEvent) => {
-                                const xhr = progressEvent.target;
-                                const reader = xhr.response.getReader();
-                                reader.read().then(function processResult(result) {
-                                    if (result.done) return;
-                                    try {
-                                        const progressData = JSON.parse(new TextDecoder().decode(result.value));
-                                        if (progressData.progress) {
-                                            this.progress = progressData.progress;
-                                            this.processedEpisodes = progressData.successful;
-                                            this.totalEpisodes = progressData.total;
-                                        }
-                                    } catch (e) {
-                                        // Non è un JSON, probabilmente è un chunk del file
-                                    }
-                                    return reader.read().then(processResult.bind(this));
-                                }.bind(this));
-                            }
                         });
                         
-                        const url = window.URL.createObjectURL(new Blob([response.data]));
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.setAttribute('download', `${this.selectedAnime.title}.zip`);
-                        document.body.appendChild(link);
-                        link.click();
-                        link.remove();
-                        
-                        alert(`Download completato! ${this.processedEpisodes} episodi su ${this.totalEpisodes} scaricati con successo.`);
+                        const taskId = response.data.task_id;
+                        this.checkTaskStatus(taskId);
                     } catch (error) {
-                        console.error('Errore nel download della serie:', error);
-                        alert(`Si è verificato un errore durante il download della serie. ${this.processedEpisodes} episodi su ${this.totalEpisodes} scaricati con successo.`);
-                    } finally {
+                        console.error('Errore nell\'avvio del download della serie:', error);
+                        alert('Si è verificato un errore nell\'avvio del download della serie. Riprova.');
                         this.loading = false;
-                        this.progress = 0;
-                        this.processedEpisodes = 0;
-                        this.totalEpisodes = 0;
+                    }
+                },
+                
+                async checkTaskStatus(taskId) {
+                    try {
+                        const response = await axios.get(`/task_status/${taskId}`);
+                        const taskInfo = response.data;
+                        
+                        this.progress = (taskInfo.current / taskInfo.total) * 100;
+                        this.processedEpisodes = taskInfo.current;
+                        this.totalEpisodes = taskInfo.total;
+                        
+                        if (taskInfo.state === 'SUCCESS') {
+                            this.loading = false;
+                            window.location.href = `/download_file/${taskId}`;
+                            alert(`Download completato! ${this.processedEpisodes} episodi su ${this.totalEpisodes} scaricati con successo.`);
+                        } else if (taskInfo.state === 'FAILURE') {
+                            this.loading = false;
+                            alert('Si è verificato un errore durante il download della serie.');
+                        } else {
+                            // Continua a controllare lo stato del task
+                            setTimeout(() => this.checkTaskStatus(taskId), 2000);
+                        }
+                    } catch (error) {
+                        console.error('Errore nel controllo dello stato del task:', error);
+                        this.loading = false;
+                        alert('Si è verificato un errore nel controllo dello stato del download.');
                     }
                 },
             },

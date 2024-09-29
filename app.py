@@ -1,10 +1,9 @@
-from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session, send_file, stream_with_context
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session, send_file
 from flask_sqlalchemy import SQLAlchemy
 import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
-from collections import defaultdict
 import os
 from dotenv import load_dotenv
 from tmdbv3api import TMDb, TV, Season, Episode
@@ -13,11 +12,8 @@ import json
 import uuid
 import zipfile
 import tempfile
-import subprocess
-import asyncio
-import aiohttp
-from aiohttp import ClientTimeout
-import concurrent.futures
+import threading
+import time
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///playlists.db')
@@ -52,6 +48,79 @@ season = Season()
 renamed_titles = {}
 
 app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
+
+download_tasks = {}
+
+def download_series_task(task_id, anime_url, title):
+    episodes = get_episodes(anime_url)
+    total_episodes = len(episodes)
+    successful_downloads = 0
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for i, episode in enumerate(episodes):
+            try:
+                streaming_url = get_streaming_url(episode['url'])
+                if streaming_url:
+                    video_url = extract_video_url(streaming_url)
+                    if video_url:
+                        output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
+                        download_mp4(video_url, output_file)
+                        successful_downloads += 1
+            except Exception as e:
+                print(f"Errore nel download dell'episodio {i+1}: {str(e)}")
+            
+            download_tasks[task_id]['progress'] = (successful_downloads / total_episodes) * 100
+            download_tasks[task_id]['current'] = successful_downloads
+            download_tasks[task_id]['total'] = total_episodes
+
+        zip_file = os.path.join(temp_dir, f'{title}.zip')
+        create_zip(temp_dir, zip_file)
+        
+        permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
+        os.rename(zip_file, permanent_zip_file)
+        
+    download_tasks[task_id]['file_path'] = permanent_zip_file
+    download_tasks[task_id]['state'] = 'SUCCESS'
+
+@app.route('/download_series', methods=['POST'])
+def download_series():
+    data = request.json
+    anime_url = data['anime_url']
+    title = data['title']
+    
+    task_id = str(uuid.uuid4())
+    download_tasks[task_id] = {
+        'state': 'PENDING',
+        'progress': 0,
+        'current': 0,
+        'total': 0,
+        'file_path': None
+    }
+    
+    thread = threading.Thread(target=download_series_task, args=(task_id, anime_url, title))
+    thread.start()
+    
+    return jsonify({'task_id': task_id}), 202
+
+@app.route('/task_status/<task_id>')
+def task_status(task_id):
+    task = download_tasks.get(task_id, {})
+    return jsonify(task)
+
+@app.route('/download_file/<task_id>')
+def download_file(task_id):
+    task = download_tasks.get(task_id, {})
+    if task.get('state') == 'SUCCESS':
+        file_path = task['file_path']
+        return send_file(file_path, as_attachment=True)
+    else:
+        return "Il file non è ancora pronto per il download", 404
+
+def download_mp4(mp4_url, output_file):
+    response = requests.get(mp4_url, stream=True)
+    with open(output_file, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
 
 @app.route('/rename_title', methods=['POST'])
 def rename_title():
@@ -383,79 +452,6 @@ def update_shared_playlist():
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     
     return jsonify({'share_url': share_url, 'share_id': share_id})
-
-@app.route('/download_series', methods=['POST'])
-def download_series():
-    data = request.json
-    anime_url = data['anime_url']
-    title = data['title']
-    
-    episodes = get_episodes(anime_url)
-    total_episodes = len(episodes)
-    
-    def generate():
-        with tempfile.TemporaryDirectory() as temp_dir:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            async def download_episode(episode, i):
-                try:
-                    streaming_url = get_streaming_url(episode['url'])
-                    if streaming_url:
-                        video_url = extract_video_url(streaming_url)
-                        if video_url:
-                            output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
-                            if video_url.endswith('.m3u8'):
-                                await convert_m3u8_to_mp4_async(video_url, output_file)
-                            else:
-                                await download_mp4_async(video_url, output_file)
-                            return True
-                except Exception as e:
-                    print(f"Errore nel download dell'episodio {i+1}: {str(e)}")
-                return False
-
-            async def process_episodes():
-                tasks = [download_episode(episode, i) for i, episode in enumerate(episodes)]
-                results = await asyncio.gather(*tasks)
-                return results
-
-            results = loop.run_until_complete(process_episodes())
-            
-            successful_downloads = sum(results)
-            yield json.dumps({"progress": 100, "successful": successful_downloads, "total": total_episodes})
-            
-            zip_file = os.path.join(temp_dir, f'{title}.zip')
-            create_zip(temp_dir, zip_file)
-            
-            with open(zip_file, 'rb') as f:
-                while True:
-                    chunk = f.read(8192)
-                    if not chunk:
-                        break
-                    yield chunk
-
-    return Response(stream_with_context(generate()), 
-                    content_type='application/octet-stream',
-                    headers={'Content-Disposition': f'attachment; filename="{title}.zip"'})
-
-async def convert_m3u8_to_mp4_async(m3u8_url, output_file):
-    command = [
-        'ffmpeg',
-        '-i', m3u8_url,
-        '-c', 'copy',
-        '-bsf:a', 'aac_adtstoasc',
-        output_file
-    ]
-    process = await asyncio.create_subprocess_exec(*command)
-    await process.communicate()
-
-async def download_mp4_async(mp4_url, output_file):
-    timeout = ClientTimeout(total=300)  # 5 minuti di timeout
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.get(mp4_url) as response:
-            with open(output_file, 'wb') as f:
-                async for chunk in response.content.iter_chunked(8192):
-                    f.write(chunk)
 
 def create_zip(source_dir, output_file):
     with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
