@@ -14,6 +14,10 @@ import uuid
 import zipfile
 import tempfile
 import subprocess
+import asyncio
+import aiohttp
+from aiohttp import ClientTimeout
+import concurrent.futures
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///playlists.db')
@@ -391,19 +395,34 @@ def download_series():
     
     def generate():
         with tempfile.TemporaryDirectory() as temp_dir:
-            for i, episode in enumerate(episodes):
-                streaming_url = get_streaming_url(episode['url'])
-                if streaming_url:
-                    video_url = extract_video_url(streaming_url)
-                    if video_url:
-                        if video_url.endswith('.m3u8'):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            async def download_episode(episode, i):
+                try:
+                    streaming_url = get_streaming_url(episode['url'])
+                    if streaming_url:
+                        video_url = extract_video_url(streaming_url)
+                        if video_url:
                             output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
-                            convert_m3u8_to_mp4(video_url, output_file)
-                        else:
-                            output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
-                            download_mp4(video_url, output_file)
-                        
-                        yield json.dumps({"progress": (i + 1) / total_episodes * 100})
+                            if video_url.endswith('.m3u8'):
+                                await convert_m3u8_to_mp4_async(video_url, output_file)
+                            else:
+                                await download_mp4_async(video_url, output_file)
+                            return True
+                except Exception as e:
+                    print(f"Errore nel download dell'episodio {i+1}: {str(e)}")
+                return False
+
+            async def process_episodes():
+                tasks = [download_episode(episode, i) for i, episode in enumerate(episodes)]
+                results = await asyncio.gather(*tasks)
+                return results
+
+            results = loop.run_until_complete(process_episodes())
+            
+            successful_downloads = sum(results)
+            yield json.dumps({"progress": 100, "successful": successful_downloads, "total": total_episodes})
             
             zip_file = os.path.join(temp_dir, f'{title}.zip')
             create_zip(temp_dir, zip_file)
@@ -419,7 +438,7 @@ def download_series():
                     content_type='application/octet-stream',
                     headers={'Content-Disposition': f'attachment; filename="{title}.zip"'})
 
-def convert_m3u8_to_mp4(m3u8_url, output_file):
+async def convert_m3u8_to_mp4_async(m3u8_url, output_file):
     command = [
         'ffmpeg',
         '-i', m3u8_url,
@@ -427,13 +446,16 @@ def convert_m3u8_to_mp4(m3u8_url, output_file):
         '-bsf:a', 'aac_adtstoasc',
         output_file
     ]
-    subprocess.run(command, check=True)
+    process = await asyncio.create_subprocess_exec(*command)
+    await process.communicate()
 
-def download_mp4(mp4_url, output_file):
-    response = requests.get(mp4_url, stream=True)
-    with open(output_file, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
+async def download_mp4_async(mp4_url, output_file):
+    timeout = ClientTimeout(total=300)  # 5 minuti di timeout
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(mp4_url) as response:
+            with open(output_file, 'wb') as f:
+                async for chunk in response.content.iter_chunked(8192):
+                    f.write(chunk)
 
 def create_zip(source_dir, output_file):
     with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:

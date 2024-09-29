@@ -672,7 +672,8 @@
                                         const progressData = JSON.parse(new TextDecoder().decode(result.value));
                                         if (progressData.progress) {
                                             this.progress = progressData.progress;
-                                            this.processedEpisodes = Math.round(this.progress / 100 * this.totalEpisodes);
+                                            this.processedEpisodes = progressData.successful;
+                                            this.totalEpisodes = progressData.total;
                                         }
                                     } catch (e) {
                                         // Non è un JSON, probabilmente è un chunk del file
@@ -689,13 +690,16 @@
                         document.body.appendChild(link);
                         link.click();
                         link.remove();
+                        
+                        alert(`Download completato! ${this.processedEpisodes} episodi su ${this.totalEpisodes} scaricati con successo.`);
                     } catch (error) {
                         console.error('Errore nel download della serie:', error);
-                        alert('Si è verificato un errore durante il download della serie. Riprova.');
+                        alert(`Si è verificato un errore durante il download della serie. ${this.processedEpisodes} episodi su ${this.totalEpisodes} scaricati con successo.`);
                     } finally {
                         this.loading = false;
                         this.progress = 0;
                         this.processedEpisodes = 0;
+                        this.totalEpisodes = 0;
                     }
                 },
             },
