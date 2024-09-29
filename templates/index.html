@@ -658,6 +658,8 @@
                     this.loading = true;
                     this.progress = 0;
                     this.processedEpisodes = 0;
+                    this.downloadedSize = 0;
+                    this.totalSize = 0;
                     
                     try {
                         const response = await axios.post('/download_series', {
@@ -666,18 +668,15 @@
                         });
                         
                         const taskId = response.data.task_id;
-                        await this.checkTaskStatus(taskId);
+                        this.checkTaskStatus(taskId);
                     } catch (error) {
                         console.error('Errore nell\'avvio del download della serie:', error);
-                        alert('Si è verificato un errore nell\'avvio del download della serie. Il processo potrebbe richiedere più tempo del previsto. Controlla lo stato del download nella pagina di stato.');
+                        alert('Si è verificato un errore nell\'avvio del download della serie. Riprova.');
                         this.loading = false;
                     }
                 },
                 
                 async checkTaskStatus(taskId) {
-                    let retryCount = 0;
-                    const maxRetries = 3;
-                    
                     while (true) {
                         try {
                             const response = await axios.get(`/task_status/${taskId}`);
@@ -700,16 +699,10 @@
                                 break;
                             }
                             
-                            await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi prima di controllare di nuovo
+                            await new Promise(resolve => setTimeout(resolve, 1000));  // Controlla ogni secondo
                         } catch (error) {
                             console.error('Errore nel controllo dello stato del task:', error);
-                            retryCount++;
-                            if (retryCount >= maxRetries) {
-                                this.loading = false;
-                                alert('Si sono verificati problemi nel controllo dello stato del download. Il processo potrebbe richiedere più tempo del previsto. Controlla lo stato del download nella pagina di stato.');
-                                break;
-                            }
-                            await new Promise(resolve => setTimeout(resolve, 10000));  // Attendi 10 secondi in caso di errore
+                            await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi in caso di errore
                         }
                     }
                 },

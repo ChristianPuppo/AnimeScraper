@@ -22,7 +22,7 @@ import concurrent.futures
 import aiofiles
 from concurrent.futures import ThreadPoolExecutor
 
-logging.basicConfig(level=logging.WARNING)  # Cambiato da INFO a WARNING
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -81,20 +81,27 @@ async def download_mp4(mp4_url, output_file, task_id, current_episode):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(mp4_url, headers=headers) as response:
-            file_size = int(response.headers.get('content-length', 0))
-            downloaded_size = 0
-            async with aiofiles.open(output_file, 'wb') as f:
-                async for chunk in response.content.iter_chunked(1024*1024):  # 1MB chunks
-                    await f.write(chunk)
-                    downloaded_size += len(chunk)
-                    if downloaded_size % (50 * 1024 * 1024) == 0:  # Aggiorna ogni 50MB
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(mp4_url, headers=headers) as response:
+                if response.status != 200:
+                    logger.error(f"Errore nel download dell'episodio {current_episode}: Status {response.status}")
+                    return 0
+                file_size = int(response.headers.get('content-length', 0))
+                downloaded_size = 0
+                async with aiofiles.open(output_file, 'wb') as f:
+                    async for chunk in response.content.iter_chunked(1024*1024):  # 1MB chunks
+                        await f.write(chunk)
+                        downloaded_size += len(chunk)
                         update_task_status(task_id, downloaded_size, current_episode)
-            update_task_status(task_id, downloaded_size, current_episode)
-            return downloaded_size
+                logger.info(f"Episodio {current_episode} scaricato con successo. Dimensione: {downloaded_size}")
+                return downloaded_size
+    except Exception as e:
+        logger.error(f"Errore nel download dell'episodio {current_episode}: {str(e)}")
+        return 0
 
 async def download_series_task(task_id, anime_url, title):
+    logger.info(f"Inizio download della serie: {title}")
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
@@ -122,19 +129,22 @@ async def download_series_task(task_id, anime_url, title):
             os.rename(zip_file, permanent_zip_file)
             
             update_task_status(task_id, total_downloaded_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
+            logger.info(f"Download della serie completato con successo: {title}")
         else:
             update_task_status(task_id, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo')
+            logger.error(f"Nessun episodio scaricato con successo per la serie: {title}")
 
 def update_task_status(task_id, downloaded_size, current_episode, total_episodes=None, state='PENDING', file_path=None, error=None):
     task = download_tasks.get(task_id, {})
     task['state'] = state
-    task['downloaded_size'] = max(task.get('downloaded_size', 0), downloaded_size)
+    task['downloaded_size'] = task.get('downloaded_size', 0) + downloaded_size
     task['current_episode'] = max(task.get('current_episode', 0), current_episode)
     if total_episodes is not None:
         task['total_episodes'] = total_episodes
     task['file_path'] = file_path
     task['error'] = error
     download_tasks[task_id] = task
+    logger.info(f"Stato del task {task_id} aggiornato: {task}")
 
 @app.route('/download_series', methods=['POST'])
 def download_series():
@@ -152,15 +162,16 @@ def download_series():
         'error': None
     }
     
-    # Esegui il download in un thread separato
-    executor = ThreadPoolExecutor(max_workers=1)
-    executor.submit(asyncio.run, download_series_task(task_id, anime_url, title))
+    # Avvia il download immediatamente
+    asyncio.run(download_series_task(task_id, anime_url, title))
     
+    logger.info(f"Task di download avviato: {task_id}")
     return jsonify({'task_id': task_id}), 202
 
 @app.route('/task_status/<task_id>')
 def task_status(task_id):
     task = download_tasks.get(task_id, {})
+    logger.info(f"Richiesta stato del task {task_id}: {task}")
     return jsonify(task)
 
 @app.route('/download_file/<task_id>')
