@@ -74,57 +74,44 @@ async def get_file_size(session, url):
         return int(response.headers.get('Content-Length', 0))
 
 def download_series_task(task_id, anime_url, title):
-    logger.info(f"Iniziando il download della serie: {title}")
+    logger.info(f"Iniziando la preparazione del download per la serie: {title}")
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
-    # Calcola la dimensione totale in modo asincrono
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    total_size = loop.run_until_complete(get_total_size(episodes))
-    loop.close()
+    update_task_status(task_id, 0, total_episodes, 0, total_episodes)
     
-    update_task_status(task_id, 0, total_size, 0, total_episodes)
-    
-    downloaded_size = 0
-
     with tempfile.TemporaryDirectory() as temp_dir:
         for i, episode in enumerate(episodes):
             try:
-                logger.info(f"Elaborazione episodio {i+1}/{total_episodes}")
+                logger.info(f"Preparazione episodio {i+1}/{total_episodes}")
                 streaming_url = get_streaming_url(episode['url'])
                 if streaming_url:
                     video_url = extract_video_url(streaming_url)
                     if video_url:
-                        output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
-                        episode_size = download_mp4(video_url, output_file, task_id, downloaded_size, total_size)
-                        downloaded_size += episode_size
+                        episode_info = {
+                            'url': video_url,
+                            'filename': f'episode_{i+1}.mp4'
+                        }
+                        with open(os.path.join(temp_dir, f'episode_{i+1}.json'), 'w') as f:
+                            json.dump(episode_info, f)
                         
-                        # Aggiorna lo stato del task dopo ogni episodio scaricato
-                        update_task_status(task_id, downloaded_size, total_size, i+1, total_episodes)
-                        logger.info(f"Episodio {i+1}/{total_episodes} scaricato con successo. Dimensione: {episode_size / (1024*1024):.2f} MB")
+                        update_task_status(task_id, i+1, total_episodes, i+1, total_episodes)
+                        logger.info(f"Episodio {i+1}/{total_episodes} preparato con successo.")
                     else:
                         logger.warning(f"Nessun URL video trovato per l'episodio {i+1}")
                 else:
                     logger.warning(f"Nessun URL di streaming trovato per l'episodio {i+1}")
             except Exception as e:
-                logger.error(f"Errore nel download dell'episodio {i+1}: {str(e)}")
-            
-            # Breve pausa per evitare di sovraccaricare il server
-            time.sleep(1)
-
-        if downloaded_size > 0:
-            zip_file = os.path.join(temp_dir, f'{title}.zip')
-            create_zip(temp_dir, zip_file)
-            
-            permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
-            os.rename(zip_file, permanent_zip_file)
-            
-            update_task_status(task_id, downloaded_size, total_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
-            logger.info(f"Download completato con successo. Dimensione totale: {downloaded_size / (1024*1024):.2f} MB")
-        else:
-            update_task_status(task_id, 0, total_size, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo')
-            logger.error("Nessun episodio scaricato con successo")
+                logger.error(f"Errore nella preparazione dell'episodio {i+1}: {str(e)}")
+        
+        zip_file = os.path.join(temp_dir, f'{title}.zip')
+        create_zip(temp_dir, zip_file)
+        
+        permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
+        os.rename(zip_file, permanent_zip_file)
+        
+        update_task_status(task_id, total_episodes, total_episodes, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
+        logger.info(f"Preparazione completata con successo. File ZIP creato: {permanent_zip_file}")
 
 def update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None):
     download_tasks[task_id] = {
@@ -171,7 +158,7 @@ def download_file(task_id):
     task = download_tasks.get(task_id, {})
     if task.get('state') == 'SUCCESS':
         file_path = task['file_path']
-        return send_file(file_path, as_attachment=True)
+        return send_file(file_path, as_attachment=True, download_name=f"{task['title']}.zip")
     else:
         return "Il file non è ancora pronto per il download", 404
 
@@ -542,7 +529,7 @@ def create_zip(source_dir, output_file):
     with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(source_dir):
             for file in files:
-                if file.endswith('.mp4'):
+                if file.endswith('.json'):
                     zipf.write(os.path.join(root, file), file)
 
 if __name__ == '__main__':
