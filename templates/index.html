@@ -272,6 +272,9 @@
                     <div v-if="!loading && progress === 0" @click="addSeriesToPlaylist" class="btn btn-primary text-white p-3 full-width-btn">
                         <span>Aggiungi Serie alla Lista</span>
                     </div>
+                    <div v-if="!loading && progress === 0" @click="downloadSeries" class="btn btn-secondary text-white p-3 full-width-btn mt-2">
+                        <span>Scarica Serie</span>
+                    </div>
                     <div v-else class="progress-bar">
                         <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
                         <div class="progress-info">
@@ -642,6 +645,58 @@
                     const estimatedTotalTime = (elapsedTime / currentProgress) * 100;
                     this.estimatedTime = Math.max(0, estimatedTotalTime - elapsedTime);
                     console.log("Debug: New estimatedTime:", this.estimatedTime);
+                },
+
+                async downloadSeries() {
+                    if (!this.selectedAnime) {
+                        alert('Nessuna serie selezionata');
+                        return;
+                    }
+                    
+                    this.loading = true;
+                    this.progress = 0;
+                    this.processedEpisodes = 0;
+                    
+                    try {
+                        const response = await axios.post('/download_series', {
+                            anime_url: this.selectedAnime.url,
+                            title: this.selectedAnime.title
+                        }, {
+                            responseType: 'blob',
+                            onDownloadProgress: (progressEvent) => {
+                                const xhr = progressEvent.target;
+                                const reader = xhr.response.getReader();
+                                reader.read().then(function processResult(result) {
+                                    if (result.done) return;
+                                    try {
+                                        const progressData = JSON.parse(new TextDecoder().decode(result.value));
+                                        if (progressData.progress) {
+                                            this.progress = progressData.progress;
+                                            this.processedEpisodes = Math.round(this.progress / 100 * this.totalEpisodes);
+                                        }
+                                    } catch (e) {
+                                        // Non è un JSON, probabilmente è un chunk del file
+                                    }
+                                    return reader.read().then(processResult.bind(this));
+                                }.bind(this));
+                            }
+                        });
+                        
+                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', `${this.selectedAnime.title}.zip`);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                    } catch (error) {
+                        console.error('Errore nel download della serie:', error);
+                        alert('Si è verificato un errore durante il download della serie. Riprova.');
+                    } finally {
+                        this.loading = false;
+                        this.progress = 0;
+                        this.processedEpisodes = 0;
+                    }
                 },
             },
             watch: {

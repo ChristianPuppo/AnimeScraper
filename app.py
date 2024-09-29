@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session, send_file, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 import requests
 from bs4 import BeautifulSoup
@@ -11,6 +11,9 @@ from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
 import json
 import uuid
+import zipfile
+import tempfile
+import subprocess
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///playlists.db')
@@ -376,6 +379,68 @@ def update_shared_playlist():
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     
     return jsonify({'share_url': share_url, 'share_id': share_id})
+
+@app.route('/download_series', methods=['POST'])
+def download_series():
+    data = request.json
+    anime_url = data['anime_url']
+    title = data['title']
+    
+    episodes = get_episodes(anime_url)
+    total_episodes = len(episodes)
+    
+    def generate():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, episode in enumerate(episodes):
+                streaming_url = get_streaming_url(episode['url'])
+                if streaming_url:
+                    video_url = extract_video_url(streaming_url)
+                    if video_url:
+                        if video_url.endswith('.m3u8'):
+                            output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
+                            convert_m3u8_to_mp4(video_url, output_file)
+                        else:
+                            output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
+                            download_mp4(video_url, output_file)
+                        
+                        yield json.dumps({"progress": (i + 1) / total_episodes * 100})
+            
+            zip_file = os.path.join(temp_dir, f'{title}.zip')
+            create_zip(temp_dir, zip_file)
+            
+            with open(zip_file, 'rb') as f:
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
+
+    return Response(stream_with_context(generate()), 
+                    content_type='application/octet-stream',
+                    headers={'Content-Disposition': f'attachment; filename="{title}.zip"'})
+
+def convert_m3u8_to_mp4(m3u8_url, output_file):
+    command = [
+        'ffmpeg',
+        '-i', m3u8_url,
+        '-c', 'copy',
+        '-bsf:a', 'aac_adtstoasc',
+        output_file
+    ]
+    subprocess.run(command, check=True)
+
+def download_mp4(mp4_url, output_file):
+    response = requests.get(mp4_url, stream=True)
+    with open(output_file, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+
+def create_zip(source_dir, output_file):
+    with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(source_dir):
+            for file in files:
+                if file.endswith('.mp4'):
+                    zipf.write(os.path.join(root, file), file)
 
 if __name__ == '__main__':
     with app.app_context():
