@@ -668,8 +668,8 @@
                         const taskId = response.data.task_id;
                         this.checkTaskStatus(taskId);
                     } catch (error) {
-                        console.error('Errore nell\'avvio della preparazione della serie:', error);
-                        alert('Si è verificato un errore nell\'avvio della preparazione della serie. Riprova.');
+                        console.error('Errore nell\'avvio del download della serie:', error);
+                        alert('Si è verificato un errore nell\'avvio del download della serie. Riprova.');
                         this.loading = false;
                     }
                 },
@@ -681,17 +681,19 @@
                         
                         console.log("Stato del task:", taskInfo);
                         
+                        this.downloadedSize = taskInfo.downloaded_size || 0;
+                        this.totalSize = taskInfo.total_size || 0;
+                        this.progress = this.totalSize > 0 ? (this.downloadedSize / this.totalSize) * 100 : 0;
                         this.processedEpisodes = taskInfo.current_episode || 0;
                         this.totalEpisodes = taskInfo.total_episodes || 0;
-                        this.progress = this.totalEpisodes > 0 ? (this.processedEpisodes / this.totalEpisodes) * 100 : 0;
                         
                         if (taskInfo.state === 'SUCCESS') {
                             this.loading = false;
                             window.location.href = `/download_file/${taskId}`;
-                            alert(`Preparazione completata! Scarica il file ZIP per iniziare il download degli episodi.`);
+                            alert(`Download completato! Dimensione totale: ${this.formatSize(this.downloadedSize)}`);
                         } else if (taskInfo.state === 'FAILURE') {
                             this.loading = false;
-                            alert('Si è verificato un errore durante la preparazione della serie: ' + (taskInfo.error || 'Errore sconosciuto'));
+                            alert('Si è verificato un errore durante il download della serie: ' + (taskInfo.error || 'Errore sconosciuto'));
                         } else {
                             // Continua a controllare lo stato del task
                             setTimeout(() => this.checkTaskStatus(taskId), 2000);
@@ -699,7 +701,7 @@
                     } catch (error) {
                         console.error('Errore nel controllo dello stato del task:', error);
                         this.loading = false;
-                        alert('Si è verificato un errore nel controllo dello stato della preparazione.');
+                        alert('Si è verificato un errore nel controllo dello stato del download.');
                     }
                 },
                 
