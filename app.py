@@ -17,6 +17,7 @@ import time
 import logging
 import aiohttp
 import asyncio
+from werkzeug.serving import run_simple
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -87,28 +88,30 @@ def download_series_task(task_id, anime_url, title):
     update_task_status(task_id, 0, total_size, 0, total_episodes)
     
     downloaded_size = 0
+    current_episode = 0
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        for i, episode in enumerate(episodes):
+        for i, episode in enumerate(episodes, 1):
             try:
-                logger.info(f"Elaborazione episodio {i+1}/{total_episodes}")
+                logger.info(f"Elaborazione episodio {i}/{total_episodes}")
                 streaming_url = get_streaming_url(episode['url'])
                 if streaming_url:
                     video_url = extract_video_url(streaming_url)
                     if video_url:
-                        output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
-                        episode_size = download_mp4(video_url, output_file, task_id, downloaded_size, total_size)
+                        output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
+                        episode_size = download_mp4(video_url, output_file, task_id, downloaded_size, total_size, i)
                         downloaded_size += episode_size
+                        current_episode = i
                         
                         # Aggiorna lo stato del task dopo ogni episodio scaricato
-                        update_task_status(task_id, downloaded_size, total_size, i+1, total_episodes)
-                        logger.info(f"Episodio {i+1}/{total_episodes} scaricato con successo. Dimensione: {episode_size / (1024*1024):.2f} MB")
+                        update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes)
+                        logger.info(f"Episodio {i}/{total_episodes} scaricato con successo. Dimensione: {episode_size / (1024*1024):.2f} MB")
                     else:
-                        logger.warning(f"Nessun URL video trovato per l'episodio {i+1}")
+                        logger.warning(f"Nessun URL video trovato per l'episodio {i}")
                 else:
-                    logger.warning(f"Nessun URL di streaming trovato per l'episodio {i+1}")
+                    logger.warning(f"Nessun URL di streaming trovato per l'episodio {i}")
             except Exception as e:
-                logger.error(f"Errore nel download dell'episodio {i+1}: {str(e)}")
+                logger.error(f"Errore nel download dell'episodio {i}: {str(e)}")
             
             # Breve pausa per evitare di sovraccaricare il server
             time.sleep(1)
@@ -175,7 +178,7 @@ def download_file(task_id):
     else:
         return "Il file non è ancora pronto per il download", 404
 
-def download_mp4(mp4_url, output_file, task_id, current_downloaded_size, total_size):
+def download_mp4(mp4_url, output_file, task_id, current_downloaded_size, total_size, current_episode):
     logger.info(f"Scaricamento file MP4: {mp4_url}")
     response = requests.get(mp4_url, stream=True)
     response.raise_for_status()
@@ -192,7 +195,7 @@ def download_mp4(mp4_url, output_file, task_id, current_downloaded_size, total_s
                 task_id,
                 current_downloaded_size,
                 total_size,
-                download_tasks[task_id]['current_episode'],
+                current_episode,
                 download_tasks[task_id]['total_episodes']
             )
             logger.debug(f"Progresso download: {progress:.2f}%")
@@ -548,7 +551,7 @@ def create_zip(source_dir, output_file):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    run_simple('localhost', 5000, app, use_reloader=True, use_debugger=True)
 else:
     # Questo blocco verrà eseguito quando l'app è avviata da Gunicorn
     with app.app_context():
