@@ -14,6 +14,10 @@ import zipfile
 import tempfile
 import threading
 import time
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///playlists.db')
@@ -52,6 +56,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
 download_tasks = {}
 
 def download_series_task(task_id, anime_url, title):
+    logger.info(f"Iniziando il download della serie: {title}")
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     successful_downloads = 0
@@ -59,6 +64,7 @@ def download_series_task(task_id, anime_url, title):
     with tempfile.TemporaryDirectory() as temp_dir:
         for i, episode in enumerate(episodes):
             try:
+                logger.info(f"Elaborazione episodio {i+1}/{total_episodes}")
                 streaming_url = get_streaming_url(episode['url'])
                 if streaming_url:
                     video_url = extract_video_url(streaming_url)
@@ -71,9 +77,13 @@ def download_series_task(task_id, anime_url, title):
                         download_tasks[task_id]['progress'] = (successful_downloads / total_episodes) * 100
                         download_tasks[task_id]['current'] = successful_downloads
                         download_tasks[task_id]['total'] = total_episodes
-                        print(f"Episodio {i+1}/{total_episodes} scaricato con successo")
+                        logger.info(f"Episodio {i+1}/{total_episodes} scaricato con successo. Progresso: {download_tasks[task_id]['progress']}%")
+                    else:
+                        logger.warning(f"Nessun URL video trovato per l'episodio {i+1}")
+                else:
+                    logger.warning(f"Nessun URL di streaming trovato per l'episodio {i+1}")
             except Exception as e:
-                print(f"Errore nel download dell'episodio {i+1}: {str(e)}")
+                logger.error(f"Errore nel download dell'episodio {i+1}: {str(e)}")
             
             # Breve pausa per evitare di sovraccaricare il server
             time.sleep(1)
@@ -87,9 +97,11 @@ def download_series_task(task_id, anime_url, title):
             
             download_tasks[task_id]['file_path'] = permanent_zip_file
             download_tasks[task_id]['state'] = 'SUCCESS'
+            logger.info(f"Download completato con successo. {successful_downloads}/{total_episodes} episodi scaricati.")
         else:
             download_tasks[task_id]['state'] = 'FAILURE'
             download_tasks[task_id]['error'] = 'Nessun episodio scaricato con successo'
+            logger.error("Nessun episodio scaricato con successo")
 
 @app.route('/download_series', methods=['POST'])
 def download_series():
@@ -114,6 +126,7 @@ def download_series():
 @app.route('/task_status/<task_id>')
 def task_status(task_id):
     task = download_tasks.get(task_id, {})
+    logger.info(f"Stato del task {task_id}: {task}")
     return jsonify(task)
 
 @app.route('/download_file/<task_id>')
@@ -126,12 +139,16 @@ def download_file(task_id):
         return "Il file non è ancora pronto per il download", 404
 
 def download_mp4(mp4_url, output_file):
+    logger.info(f"Scaricamento file MP4: {mp4_url}")
     response = requests.get(mp4_url, stream=True)
     response.raise_for_status()
+    total_size = int(response.headers.get('content-length', 0))
+    block_size = 1024  # 1 KB
     with open(output_file, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
+        for data in response.iter_content(block_size):
+            size = f.write(data)
+            logger.debug(f"Scaricati {size} bytes")
+    logger.info(f"File MP4 scaricato con successo: {output_file}")
 
 @app.route('/rename_title', methods=['POST'])
 def rename_title():

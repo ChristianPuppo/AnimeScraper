@@ -677,9 +677,11 @@
                         const response = await axios.get(`/task_status/${taskId}`);
                         const taskInfo = response.data;
                         
-                        this.progress = (taskInfo.current / taskInfo.total) * 100;
-                        this.processedEpisodes = taskInfo.current;
-                        this.totalEpisodes = taskInfo.total;
+                        console.log("Stato del task:", taskInfo);
+                        
+                        this.progress = taskInfo.progress || 0;
+                        this.processedEpisodes = taskInfo.current || 0;
+                        this.totalEpisodes = taskInfo.total || 0;
                         
                         if (taskInfo.state === 'SUCCESS') {
                             this.loading = false;
