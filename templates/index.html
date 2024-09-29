@@ -666,7 +666,7 @@
                         });
                         
                         const taskId = response.data.task_id;
-                        this.checkTaskStatus(taskId);
+                        await this.checkTaskStatus(taskId);
                     } catch (error) {
                         console.error('Errore nell\'avvio del download della serie:', error);
                         alert('Si è verificato un errore nell\'avvio del download della serie. Riprova.');
@@ -675,33 +675,35 @@
                 },
                 
                 async checkTaskStatus(taskId) {
-                    try {
-                        const response = await axios.get(`/task_status/${taskId}`);
-                        const taskInfo = response.data;
-                        
-                        console.log("Stato del task:", taskInfo);
-                        
-                        this.downloadedSize = taskInfo.downloaded_size || 0;
-                        this.totalSize = taskInfo.total_size || 0;
-                        this.progress = this.totalSize > 0 ? (this.downloadedSize / this.totalSize) * 100 : 0;
-                        this.processedEpisodes = taskInfo.current_episode || 0;
-                        this.totalEpisodes = taskInfo.total_episodes || 0;
-                        
-                        if (taskInfo.state === 'SUCCESS') {
+                    while (true) {
+                        try {
+                            const response = await axios.get(`/task_status/${taskId}`);
+                            const taskInfo = response.data;
+                            
+                            console.log("Stato del task:", taskInfo);
+                            
+                            this.downloadedSize = taskInfo.downloaded_size || 0;
+                            this.progress = taskInfo.total_episodes > 0 ? (taskInfo.current_episode / taskInfo.total_episodes) * 100 : 0;
+                            this.processedEpisodes = taskInfo.current_episode || 0;
+                            this.totalEpisodes = taskInfo.total_episodes || 0;
+                            
+                            if (taskInfo.state === 'SUCCESS') {
+                                this.loading = false;
+                                window.location.href = `/download_file/${taskId}`;
+                                break;
+                            } else if (taskInfo.state === 'FAILURE') {
+                                this.loading = false;
+                                alert('Si è verificato un errore durante il download della serie: ' + (taskInfo.error || 'Errore sconosciuto'));
+                                break;
+                            }
+                            
+                            await new Promise(resolve => setTimeout(resolve, 1000));  // Attendi 1 secondo prima di controllare di nuovo
+                        } catch (error) {
+                            console.error('Errore nel controllo dello stato del task:', error);
                             this.loading = false;
-                            window.location.href = `/download_file/${taskId}`;
-                            alert(`Download completato! Dimensione totale: ${this.formatSize(this.downloadedSize)}`);
-                        } else if (taskInfo.state === 'FAILURE') {
-                            this.loading = false;
-                            alert('Si è verificato un errore durante il download della serie: ' + (taskInfo.error || 'Errore sconosciuto'));
-                        } else {
-                            // Continua a controllare lo stato del task
-                            setTimeout(() => this.checkTaskStatus(taskId), 2000);
+                            alert('Si è verificato un errore nel controllo dello stato del download.');
+                            break;
                         }
-                    } catch (error) {
-                        console.error('Errore nel controllo dello stato del task:', error);
-                        this.loading = false;
-                        alert('Si è verificato un errore nel controllo dello stato del download.');
                     }
                 },
                 

@@ -19,6 +19,7 @@ import aiohttp
 import asyncio
 from werkzeug.serving import run_simple
 import concurrent.futures
+import aiofiles
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -75,71 +76,71 @@ async def get_file_size(session, url):
     async with session.head(url) as response:
         return int(response.headers.get('Content-Length', 0))
 
-def download_series_task(task_id, anime_url, title):
+async def download_mp4(mp4_url, output_file, task_id, current_episode):
+    logger.info(f"Scaricamento file MP4: {mp4_url}")
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(mp4_url, headers=headers) as response:
+            file_size = int(response.headers.get('content-length', 0))
+            downloaded_size = 0
+            async with aiofiles.open(output_file, 'wb') as f:
+                async for chunk in response.content.iter_chunked(1024*1024):  # 1MB chunks
+                    await f.write(chunk)
+                    downloaded_size += len(chunk)
+                    update_task_status(task_id, downloaded_size, current_episode)
+            logger.info(f"File MP4 scaricato con successo: {output_file}")
+            return downloaded_size
+
+async def download_series_task(task_id, anime_url, title):
     logger.info(f"Iniziando il download della serie: {title}")
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
-    # Calcola la dimensione totale in modo asincrono
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    total_size = loop.run_until_complete(get_total_size(episodes))
-    loop.close()
+    update_task_status(task_id, 0, 0, total_episodes)
     
-    update_task_status(task_id, 0, total_size, 0, total_episodes)
-    
-    downloaded_size = 0
-    current_episode = 0
-
     with tempfile.TemporaryDirectory() as temp_dir:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            futures = []
-            for i, episode in enumerate(episodes, 1):
-                streaming_url = get_streaming_url(episode['url'])
-                if streaming_url:
-                    video_url = extract_video_url(streaming_url)
-                    if video_url:
-                        output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
-                        future = executor.submit(download_mp4, video_url, output_file, task_id, downloaded_size, total_size, i)
-                        futures.append(future)
-                    else:
-                        logger.warning(f"Nessun URL video trovato per l'episodio {i}")
+        tasks = []
+        for i, episode in enumerate(episodes, 1):
+            streaming_url = get_streaming_url(episode['url'])
+            if streaming_url:
+                video_url = extract_video_url(streaming_url)
+                if video_url:
+                    output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
+                    task = download_mp4(video_url, output_file, task_id, i)
+                    tasks.append(task)
                 else:
-                    logger.warning(f"Nessun URL di streaming trovato per l'episodio {i}")
+                    logger.warning(f"Nessun URL video trovato per l'episodio {i}")
+            else:
+                logger.warning(f"Nessun URL di streaming trovato per l'episodio {i}")
 
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    episode_size = future.result()
-                    downloaded_size += episode_size
-                    current_episode += 1
-                    update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes)
-                except Exception as e:
-                    logger.error(f"Errore nel download di un episodio: {str(e)}")
+        results = await asyncio.gather(*tasks)
+        total_downloaded_size = sum(results)
 
-        if downloaded_size > 0:
+        if total_downloaded_size > 0:
             zip_file = os.path.join(temp_dir, f'{title}.zip')
             create_zip(temp_dir, zip_file)
             
             permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
             os.rename(zip_file, permanent_zip_file)
             
-            update_task_status(task_id, downloaded_size, total_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
-            logger.info(f"Download completato con successo. Dimensione totale: {downloaded_size / (1024*1024):.2f} MB")
+            update_task_status(task_id, total_downloaded_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
+            logger.info(f"Download completato con successo. Dimensione totale: {total_downloaded_size / (1024*1024):.2f} MB")
         else:
-            update_task_status(task_id, 0, total_size, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo')
+            update_task_status(task_id, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo')
             logger.error("Nessun episodio scaricato con successo")
 
-def update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None):
-    download_tasks[task_id] = {
-        'state': state,
-        'downloaded_size': downloaded_size,
-        'total_size': total_size,
-        'current_episode': current_episode,
-        'total_episodes': total_episodes,
-        'file_path': file_path,
-        'error': error
-    }
-    logger.info(f"Stato del task {task_id} aggiornato: {download_tasks[task_id]}")
+def update_task_status(task_id, downloaded_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None):
+    task = download_tasks.get(task_id, {})
+    task['state'] = state
+    task['downloaded_size'] = max(task.get('downloaded_size', 0), downloaded_size)  # Usa il valore massimo
+    task['current_episode'] = max(task.get('current_episode', 0), current_episode)  # Usa il valore massimo
+    task['total_episodes'] = total_episodes
+    task['file_path'] = file_path
+    task['error'] = error
+    download_tasks[task_id] = task
+    logger.info(f"Stato del task {task_id} aggiornato: {task}")
 
 @app.route('/download_series', methods=['POST'])
 def download_series():
@@ -151,15 +152,13 @@ def download_series():
     download_tasks[task_id] = {
         'state': 'PENDING',
         'downloaded_size': 0,
-        'total_size': 0,
         'current_episode': 0,
         'total_episodes': 0,
         'file_path': None,
         'error': None
     }
     
-    thread = threading.Thread(target=download_series_task, args=(task_id, anime_url, title))
-    thread.start()
+    asyncio.run(download_series_task(task_id, anime_url, title))
     
     return jsonify({'task_id': task_id}), 202
 
@@ -174,36 +173,9 @@ def download_file(task_id):
     task = download_tasks.get(task_id, {})
     if task.get('state') == 'SUCCESS':
         file_path = task['file_path']
-        return send_file(file_path, as_attachment=True)
+        return send_file(file_path, as_attachment=True, download_name=f"{task_id}.zip")
     else:
-        return "Il file non è ancora pronto per il download", 404
-
-def download_mp4(mp4_url, output_file, task_id, current_downloaded_size, total_size, current_episode):
-    logger.info(f"Scaricamento file MP4: {mp4_url}")
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    response = requests.get(mp4_url, stream=True, headers=headers)
-    response.raise_for_status()
-    file_size = int(response.headers.get('content-length', 0))
-    block_size = 8192  # 8 KB
-    downloaded_size = 0
-    with open(output_file, 'wb') as f:
-        for data in response.iter_content(block_size):
-            size = f.write(data)
-            downloaded_size += size
-            current_downloaded_size += size
-            progress = (current_downloaded_size / total_size) * 100
-            update_task_status(
-                task_id,
-                current_downloaded_size,
-                total_size,
-                current_episode,
-                download_tasks[task_id]['total_episodes']
-            )
-            logger.debug(f"Progresso download: {progress:.2f}%")
-    logger.info(f"File MP4 scaricato con successo: {output_file}")
-    return downloaded_size
+        return jsonify({"error": "Il file non è ancora pronto per il download"}), 404
 
 @app.route('/rename_title', methods=['POST'])
 def rename_title():
