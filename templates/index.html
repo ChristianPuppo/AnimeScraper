@@ -678,7 +678,7 @@
                 
                 async checkTaskStatus(taskId) {
                     let retryCount = 0;
-                    const maxRetries = 3;
+                    const maxRetries = 30;  // Aumentato il numero di tentativi
                     
                     while (true) {
                         try {
