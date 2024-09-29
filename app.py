@@ -58,6 +58,19 @@ app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
 
 download_tasks = {}
 
+def update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None, title=None):
+    download_tasks[task_id] = {
+        'state': state,
+        'downloaded_size': downloaded_size,
+        'total_size': total_size,
+        'current_episode': current_episode,
+        'total_episodes': total_episodes,
+        'file_path': file_path,
+        'error': error,
+        'title': title
+    }
+    logger.info(f"Stato del task {task_id} aggiornato: {download_tasks[task_id]}")
+
 async def get_total_size(episodes):
     async with aiohttp.ClientSession() as session:
         tasks = []
@@ -83,56 +96,66 @@ async def download_episode(session, url, output_path):
     return False
 
 async def download_series(task_id, anime_url, title):
-    episodes = get_episodes(anime_url)
-    total_episodes = len(episodes)
-    
-    update_task_status(task_id, 0, total_episodes, 0, total_episodes, title=title)
-    
-    with tempfile.TemporaryDirectory() as temp_dir:
-        async with aiohttp.ClientSession() as session:
-            download_tasks = []
-            for i, episode in enumerate(episodes):
-                streaming_url = get_streaming_url(episode['url'])
-                if streaming_url:
-                    video_url = extract_video_url(streaming_url)
-                    if video_url:
-                        output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
-                        download_tasks.append(download_episode(session, video_url, output_file))
-            
-            results = await asyncio.gather(*download_tasks)
-            
-            successful_downloads = sum(results)
-            update_task_status(task_id, successful_downloads, total_episodes, successful_downloads, total_episodes, title=title)
+    try:
+        episodes = get_episodes(anime_url)
+        total_episodes = len(episodes)
         
-        if successful_downloads > 0:
-            zip_file = os.path.join(temp_dir, f'{title}.zip')
-            with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for root, _, files in os.walk(temp_dir):
-                    for file in files:
-                        if file.endswith('.mp4'):
-                            zipf.write(os.path.join(root, file), file)
+        update_task_status(task_id, 0, 0, 0, total_episodes, title=title)
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            async with aiohttp.ClientSession() as session:
+                download_tasks = []
+                for i, episode in enumerate(episodes):
+                    streaming_url = get_streaming_url(episode['url'])
+                    if streaming_url:
+                        video_url = extract_video_url(streaming_url)
+                        if video_url:
+                            output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
+                            download_tasks.append(download_episode(session, video_url, output_file))
+                
+                results = await asyncio.gather(*download_tasks)
+                
+                successful_downloads = sum(results)
+                update_task_status(task_id, successful_downloads, total_episodes, successful_downloads, total_episodes, title=title)
             
-            permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
-            os.rename(zip_file, permanent_zip_file)
-            
-            update_task_status(task_id, successful_downloads, total_episodes, successful_downloads, total_episodes, state='SUCCESS', file_path=permanent_zip_file, title=title)
-            logger.info(f"Download completato con successo. File ZIP creato: {permanent_zip_file}")
-        else:
-            update_task_status(task_id, 0, total_episodes, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo', title=title)
-            logger.error("Nessun episodio scaricato con successo")
+            if successful_downloads > 0:
+                zip_file = os.path.join(temp_dir, f'{title}.zip')
+                with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for root, _, files in os.walk(temp_dir):
+                        for file in files:
+                            if file.endswith('.mp4'):
+                                zipf.write(os.path.join(root, file), file)
+                
+                permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
+                os.rename(zip_file, permanent_zip_file)
+                
+                update_task_status(task_id, successful_downloads, total_episodes, successful_downloads, total_episodes, state='SUCCESS', file_path=permanent_zip_file, title=title)
+                logger.info(f"Download completato con successo. File ZIP creato: {permanent_zip_file}")
+            else:
+                update_task_status(task_id, 0, total_episodes, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo', title=title)
+                logger.error("Nessun episodio scaricato con successo")
+    except Exception as e:
+        logger.error(f"Errore durante il download della serie: {str(e)}")
+        update_task_status(task_id, 0, 0, 0, 0, state='FAILURE', error=str(e), title=title)
 
 @app.route('/download_series', methods=['POST'])
 def start_download_series():
-    data = request.json
-    anime_url = data['anime_url']
-    title = data['title']
-    
-    task_id = str(uuid.uuid4())
-    update_task_status(task_id, 0, 0, 0, 0, state='PENDING', title=title)
-    
-    asyncio.run(download_series(task_id, anime_url, title))
-    
-    return jsonify({'task_id': task_id}), 202
+    try:
+        data = request.json
+        anime_url = data['anime_url']
+        title = data['title']
+        
+        task_id = str(uuid.uuid4())
+        update_task_status(task_id, 0, 0, 0, 0, state='PENDING', title=title)
+        
+        # Avvia il download in un thread separato
+        thread = threading.Thread(target=lambda: asyncio.run(download_series(task_id, anime_url, title)))
+        thread.start()
+        
+        return jsonify({'task_id': task_id}), 202
+    except Exception as e:
+        logger.error(f"Errore nell'avvio del download della serie: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/task_status/<task_id>')
 def task_status(task_id):
