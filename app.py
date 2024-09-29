@@ -78,7 +78,7 @@ def download_series_task(task_id, anime_url, title):
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
-    update_task_status(task_id, 0, total_episodes, 0, total_episodes)
+    update_task_status(task_id, 0, total_episodes, 0, total_episodes, title=title)
     
     with tempfile.TemporaryDirectory() as temp_dir:
         for i, episode in enumerate(episodes):
@@ -95,7 +95,7 @@ def download_series_task(task_id, anime_url, title):
                         with open(os.path.join(temp_dir, f'episode_{i+1}.json'), 'w') as f:
                             json.dump(episode_info, f)
                         
-                        update_task_status(task_id, i+1, total_episodes, i+1, total_episodes)
+                        update_task_status(task_id, i+1, total_episodes, i+1, total_episodes, title=title)
                         logger.info(f"Episodio {i+1}/{total_episodes} preparato con successo.")
                     else:
                         logger.warning(f"Nessun URL video trovato per l'episodio {i+1}")
@@ -110,10 +110,10 @@ def download_series_task(task_id, anime_url, title):
         permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
         os.rename(zip_file, permanent_zip_file)
         
-        update_task_status(task_id, total_episodes, total_episodes, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file)
+        update_task_status(task_id, total_episodes, total_episodes, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file, title=title)
         logger.info(f"Preparazione completata con successo. File ZIP creato: {permanent_zip_file}")
 
-def update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None):
+def update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None, title=None):
     download_tasks[task_id] = {
         'state': state,
         'downloaded_size': downloaded_size,
@@ -121,7 +121,8 @@ def update_task_status(task_id, downloaded_size, total_size, current_episode, to
         'current_episode': current_episode,
         'total_episodes': total_episodes,
         'file_path': file_path,
-        'error': error
+        'error': error,
+        'title': title
     }
     logger.info(f"Stato del task {task_id} aggiornato: {download_tasks[task_id]}")
 
@@ -158,7 +159,9 @@ def download_file(task_id):
     task = download_tasks.get(task_id, {})
     if task.get('state') == 'SUCCESS':
         file_path = task['file_path']
-        return send_file(file_path, as_attachment=True, download_name=f"{task['title']}.zip")
+        # Estraiamo il nome del file dal percorso
+        file_name = os.path.basename(file_path)
+        return send_file(file_path, as_attachment=True, download_name=file_name)
     else:
         return "Il file non è ancora pronto per il download", 404
 
