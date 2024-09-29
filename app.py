@@ -17,6 +17,7 @@ import time
 import logging
 import aiohttp
 import asyncio
+import aiofiles
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -73,78 +74,63 @@ async def get_file_size(session, url):
     async with session.head(url) as response:
         return int(response.headers.get('Content-Length', 0))
 
-def download_series_task(task_id, anime_url, title):
-    logger.info(f"Iniziando la preparazione del download per la serie: {title}")
+async def download_episode(session, url, output_path):
+    async with session.get(url) as response:
+        if response.status == 200:
+            async with aiofiles.open(output_path, mode='wb') as f:
+                await f.write(await response.read())
+            return True
+    return False
+
+async def download_series(task_id, anime_url, title):
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
     update_task_status(task_id, 0, total_episodes, 0, total_episodes, title=title)
     
     with tempfile.TemporaryDirectory() as temp_dir:
-        for i, episode in enumerate(episodes):
-            try:
-                logger.info(f"Preparazione episodio {i+1}/{total_episodes}")
+        async with aiohttp.ClientSession() as session:
+            download_tasks = []
+            for i, episode in enumerate(episodes):
                 streaming_url = get_streaming_url(episode['url'])
                 if streaming_url:
                     video_url = extract_video_url(streaming_url)
                     if video_url:
-                        episode_info = {
-                            'url': video_url,
-                            'filename': f'episode_{i+1}.mp4'
-                        }
-                        with open(os.path.join(temp_dir, f'episode_{i+1}.json'), 'w') as f:
-                            json.dump(episode_info, f)
-                        
-                        update_task_status(task_id, i+1, total_episodes, i+1, total_episodes, title=title)
-                        logger.info(f"Episodio {i+1}/{total_episodes} preparato con successo.")
-                    else:
-                        logger.warning(f"Nessun URL video trovato per l'episodio {i+1}")
-                else:
-                    logger.warning(f"Nessun URL di streaming trovato per l'episodio {i+1}")
-            except Exception as e:
-                logger.error(f"Errore nella preparazione dell'episodio {i+1}: {str(e)}")
+                        output_file = os.path.join(temp_dir, f'episode_{i+1}.mp4')
+                        download_tasks.append(download_episode(session, video_url, output_file))
+            
+            results = await asyncio.gather(*download_tasks)
+            
+            successful_downloads = sum(results)
+            update_task_status(task_id, successful_downloads, total_episodes, successful_downloads, total_episodes, title=title)
         
-        zip_file = os.path.join(temp_dir, f'{title}.zip')
-        create_zip(temp_dir, zip_file)
-        
-        permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
-        os.rename(zip_file, permanent_zip_file)
-        
-        update_task_status(task_id, total_episodes, total_episodes, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file, title=title)
-        logger.info(f"Preparazione completata con successo. File ZIP creato: {permanent_zip_file}")
-
-def update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes, state='PENDING', file_path=None, error=None, title=None):
-    download_tasks[task_id] = {
-        'state': state,
-        'downloaded_size': downloaded_size,
-        'total_size': total_size,
-        'current_episode': current_episode,
-        'total_episodes': total_episodes,
-        'file_path': file_path,
-        'error': error,
-        'title': title
-    }
-    logger.info(f"Stato del task {task_id} aggiornato: {download_tasks[task_id]}")
+        if successful_downloads > 0:
+            zip_file = os.path.join(temp_dir, f'{title}.zip')
+            with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, _, files in os.walk(temp_dir):
+                    for file in files:
+                        if file.endswith('.mp4'):
+                            zipf.write(os.path.join(root, file), file)
+            
+            permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
+            os.rename(zip_file, permanent_zip_file)
+            
+            update_task_status(task_id, successful_downloads, total_episodes, successful_downloads, total_episodes, state='SUCCESS', file_path=permanent_zip_file, title=title)
+            logger.info(f"Download completato con successo. File ZIP creato: {permanent_zip_file}")
+        else:
+            update_task_status(task_id, 0, total_episodes, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo', title=title)
+            logger.error("Nessun episodio scaricato con successo")
 
 @app.route('/download_series', methods=['POST'])
-def download_series():
+def start_download_series():
     data = request.json
     anime_url = data['anime_url']
     title = data['title']
     
     task_id = str(uuid.uuid4())
-    download_tasks[task_id] = {
-        'state': 'PENDING',
-        'downloaded_size': 0,
-        'total_size': 0,
-        'current_episode': 0,
-        'total_episodes': 0,
-        'file_path': None,
-        'error': None
-    }
+    update_task_status(task_id, 0, 0, 0, 0, state='PENDING', title=title)
     
-    thread = threading.Thread(target=download_series_task, args=(task_id, anime_url, title))
-    thread.start()
+    asyncio.run(download_series(task_id, anime_url, title))
     
     return jsonify({'task_id': task_id}), 202
 
@@ -159,7 +145,6 @@ def download_file(task_id):
     task = download_tasks.get(task_id, {})
     if task.get('state') == 'SUCCESS':
         file_path = task['file_path']
-        # Estraiamo il nome del file dal percorso
         file_name = os.path.basename(file_path)
         return send_file(file_path, as_attachment=True, download_name=file_name)
     else:
