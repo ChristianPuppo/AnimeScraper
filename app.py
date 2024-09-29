@@ -118,8 +118,11 @@ def download_series_task(task_id, anime_url, title):
     episodes = get_episodes(anime_url)
     total_episodes = len(episodes)
     
-    # Calcola la dimensione totale in modo sincrono
-    total_size = sum(get_file_size_sync(get_streaming_url(episode['url'])) for episode in episodes)
+    # Calcola la dimensione totale in modo asincrono
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    total_size = loop.run_until_complete(get_total_size(episodes))
+    loop.close()
     
     update_task_status(task_id, 0, 0, total_episodes, total_size=total_size)
     
