@@ -677,12 +677,21 @@
                 },
                 
                 async checkTaskStatus(taskId) {
+                    let retryCount = 0;
+                    const maxRetries = 3;
+                    
                     while (true) {
                         try {
                             const response = await axios.get(`/task_status/${taskId}`);
                             const taskInfo = response.data;
                             
                             console.log("Stato del task:", taskInfo);
+                            
+                            if (taskInfo.error) {
+                                this.loading = false;
+                                alert('Il task di download è scaduto o non è più disponibile.');
+                                break;
+                            }
                             
                             this.downloadedSize = taskInfo.downloaded_size || 0;
                             this.totalEpisodes = taskInfo.total_episodes || 0;
@@ -699,9 +708,15 @@
                                 break;
                             }
                             
-                            await new Promise(resolve => setTimeout(resolve, 1000));  // Controlla ogni secondo
+                            await new Promise(resolve => setTimeout(resolve, 2000));  // Controlla ogni 2 secondi
                         } catch (error) {
                             console.error('Errore nel controllo dello stato del task:', error);
+                            retryCount++;
+                            if (retryCount >= maxRetries) {
+                                this.loading = false;
+                                alert('Si sono verificati problemi nel controllo dello stato del download. Il processo potrebbe richiedere più tempo del previsto.');
+                                break;
+                            }
                             await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi in caso di errore
                         }
                     }
