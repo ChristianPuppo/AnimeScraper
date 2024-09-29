@@ -18,6 +18,7 @@ import logging
 import aiohttp
 import asyncio
 from werkzeug.serving import run_simple
+import concurrent.futures
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -91,30 +92,29 @@ def download_series_task(task_id, anime_url, title):
     current_episode = 0
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        for i, episode in enumerate(episodes, 1):
-            try:
-                logger.info(f"Elaborazione episodio {i}/{total_episodes}")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            for i, episode in enumerate(episodes, 1):
                 streaming_url = get_streaming_url(episode['url'])
                 if streaming_url:
                     video_url = extract_video_url(streaming_url)
                     if video_url:
                         output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
-                        episode_size = download_mp4(video_url, output_file, task_id, downloaded_size, total_size, i)
-                        downloaded_size += episode_size
-                        current_episode = i
-                        
-                        # Aggiorna lo stato del task dopo ogni episodio scaricato
-                        update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes)
-                        logger.info(f"Episodio {i}/{total_episodes} scaricato con successo. Dimensione: {episode_size / (1024*1024):.2f} MB")
+                        future = executor.submit(download_mp4, video_url, output_file, task_id, downloaded_size, total_size, i)
+                        futures.append(future)
                     else:
                         logger.warning(f"Nessun URL video trovato per l'episodio {i}")
                 else:
                     logger.warning(f"Nessun URL di streaming trovato per l'episodio {i}")
-            except Exception as e:
-                logger.error(f"Errore nel download dell'episodio {i}: {str(e)}")
-            
-            # Breve pausa per evitare di sovraccaricare il server
-            time.sleep(1)
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    episode_size = future.result()
+                    downloaded_size += episode_size
+                    current_episode += 1
+                    update_task_status(task_id, downloaded_size, total_size, current_episode, total_episodes)
+                except Exception as e:
+                    logger.error(f"Errore nel download di un episodio: {str(e)}")
 
         if downloaded_size > 0:
             zip_file = os.path.join(temp_dir, f'{title}.zip')
@@ -180,10 +180,13 @@ def download_file(task_id):
 
 def download_mp4(mp4_url, output_file, task_id, current_downloaded_size, total_size, current_episode):
     logger.info(f"Scaricamento file MP4: {mp4_url}")
-    response = requests.get(mp4_url, stream=True)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    response = requests.get(mp4_url, stream=True, headers=headers)
     response.raise_for_status()
     file_size = int(response.headers.get('content-length', 0))
-    block_size = 1024 * 1024  # 1 MB
+    block_size = 8192  # 8 KB
     downloaded_size = 0
     with open(output_file, 'wb') as f:
         for data in response.iter_content(block_size):
