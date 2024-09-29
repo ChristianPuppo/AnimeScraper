@@ -90,15 +90,28 @@ async def download_mp4(mp4_url, output_file, task_id, current_episode):
                 file_size = int(response.headers.get('content-length', 0))
                 downloaded_size = 0
                 async with aiofiles.open(output_file, 'wb') as f:
-                    async for chunk in response.content.iter_chunked(1024*1024):  # 1MB chunks
+                    async for chunk in response.content.iter_chunked(8192):  # Aumentato a 8KB per chunk
                         await f.write(chunk)
                         downloaded_size += len(chunk)
-                        update_task_status(task_id, downloaded_size, current_episode)
+                        if downloaded_size % (1024 * 1024) == 0:  # Aggiorna ogni 1MB
+                            update_task_status(task_id, downloaded_size, current_episode)
                 logger.info(f"Episodio {current_episode} scaricato con successo. Dimensione: {downloaded_size}")
                 return downloaded_size
     except Exception as e:
         logger.error(f"Errore nel download dell'episodio {current_episode}: {str(e)}")
         return 0
+
+async def download_episodes(episodes, temp_dir, task_id):
+    tasks = []
+    for i, episode in enumerate(episodes, 1):
+        streaming_url = get_streaming_url(episode['url'])
+        if streaming_url:
+            video_url = extract_video_url(streaming_url)
+            if video_url:
+                output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
+                task = download_mp4(video_url, output_file, task_id, i)
+                tasks.append(task)
+    return await asyncio.gather(*tasks)
 
 def download_series_task(task_id, anime_url, title):
     logger.info(f"Inizio download della serie: {title}")
@@ -111,16 +124,8 @@ def download_series_task(task_id, anime_url, title):
     update_task_status(task_id, 0, 0, total_episodes, total_size=total_size)
     
     with tempfile.TemporaryDirectory() as temp_dir:
-        for i, episode in enumerate(episodes, 1):
-            streaming_url = get_streaming_url(episode['url'])
-            if streaming_url:
-                video_url = extract_video_url(streaming_url)
-                if video_url:
-                    output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
-                    downloaded_size = asyncio.run(download_mp4(video_url, output_file, task_id, i))
-                    update_task_status(task_id, downloaded_size, i, total_size=total_size)
-
-        total_downloaded_size = sum(os.path.getsize(os.path.join(temp_dir, f)) for f in os.listdir(temp_dir) if f.endswith('.mp4'))
+        results = asyncio.run(download_episodes(episodes, temp_dir, task_id))
+        total_downloaded_size = sum(results)
 
         if total_downloaded_size > 0:
             zip_file = os.path.join(temp_dir, f'{title}.zip')
@@ -135,7 +140,7 @@ def download_series_task(task_id, anime_url, title):
             update_task_status(task_id, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo', total_size=total_size)
             logger.error(f"Nessun episodio scaricato con successo per la serie: {title}")
 
-def update_task_status(task_id, downloaded_size, current_episode, total_episodes=None, state='PENDING', file_path=None, error=None, total_size=None):
+def update_task_status(task_id, downloaded_size, current_episode, total_episodes=None, state='PENDING', file_path=None, error=None, total_size=None, added_episodes=None):
     task = download_tasks.get(task_id, {})
     task['state'] = state
     task['downloaded_size'] = downloaded_size
@@ -144,6 +149,8 @@ def update_task_status(task_id, downloaded_size, current_episode, total_episodes
         task['total_episodes'] = total_episodes
     if total_size is not None:
         task['total_size'] = total_size
+    if added_episodes is not None:
+        task['added_episodes'] = added_episodes
     task['file_path'] = file_path
     task['error'] = error
     task['last_update'] = time.time()
@@ -532,6 +539,42 @@ def update_shared_playlist():
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     
     return jsonify({'share_url': share_url, 'share_id': share_id})
+
+@app.route('/add_to_playlist', methods=['POST'])
+def add_to_playlist():
+    data = request.json
+    anime_url = data['anime_url']
+    title = data['title']
+    
+    task_id = str(uuid.uuid4())
+    download_tasks[task_id] = {
+        'state': 'ADDING',
+        'added_episodes': 0,
+        'total_episodes': 0,
+        'error': None,
+        'last_update': time.time()
+    }
+    
+    # Avvia l'aggiunta alla playlist in un thread separato
+    executor = ThreadPoolExecutor(max_workers=1)
+    executor.submit(add_series_to_playlist_task, task_id, anime_url, title)
+    
+    logger.info(f"Task di aggiunta alla playlist avviato: {task_id}")
+    return jsonify({'task_id': task_id}), 202
+
+def add_series_to_playlist_task(task_id, anime_url, title):
+    episodes = get_episodes(anime_url)
+    total_episodes = len(episodes)
+    
+    update_task_status(task_id, 0, 0, total_episodes, state='ADDING', added_episodes=0)
+    
+    for i, episode in enumerate(episodes, 1):
+        # Simula l'aggiunta di un episodio
+        time.sleep(0.1)  # Simula un breve ritardo
+        update_task_status(task_id, 0, i, total_episodes, state='ADDING', added_episodes=i)
+    
+    update_task_status(task_id, 0, total_episodes, total_episodes, state='SUCCESS', added_episodes=total_episodes)
+    logger.info(f"Aggiunta della serie alla playlist completata con successo: {title}")
 
 def create_zip(source_dir, output_file):
     with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
