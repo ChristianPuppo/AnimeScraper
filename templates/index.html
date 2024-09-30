@@ -272,18 +272,10 @@
                     <div v-if="!loading && progress === 0" @click="addSeriesToPlaylist" class="btn btn-primary text-white p-3 full-width-btn">
                         <span>Aggiungi Serie alla Lista</span>
                     </div>
-                    <div v-if="!loading && progress === 0" @click="downloadSeries" class="btn btn-secondary text-white p-3 full-width-btn mt-2">
-                        <span>Scarica Serie</span>
-                    </div>
-                    <div v-if="loading" class="progress-bar">
+                    <div v-else class="progress-bar">
                         <div class="progress-bar-inner" :style="{ width: progress + '%' }"></div>
                         <div class="progress-info">
-                            <span v-if="isAdding">
-                                {% raw %}{{ addedEpisodes }} / {{ totalEpisodes }} episodi aggiunti{% endraw %}
-                            </span>
-                            <span v-else class="download-size">
-                                {% raw %}{{ formatSize(downloadedSize) }} / {{ formatSize(totalSize) }}{% endraw %}
-                            </span>
+                            <span class="episode-count">{% raw %}{{ processedEpisodes }}/{{ totalEpisodes }}{% endraw %}</span>
                         </div>
                     </div>
                 </div>
@@ -372,10 +364,6 @@
                 startTime: 0,
                 processedEpisodes: 0,
                 totalEpisodes: 0,
-                downloadedSize: 0,
-                totalSize: 0,
-                isAdding: false,
-                addedEpisodes: 0,
             },
             methods: {
                 async searchAnime() {
@@ -450,72 +438,59 @@
                     });
                 },
                 async addSeriesToPlaylist() {
-                    if (!this.selectedAnime) {
-                        alert('Nessuna serie selezionata');
-                        return;
-                    }
-                    
+                    console.log("Debug: addSeriesToPlaylist started");
                     this.loading = true;
-                    this.isAdding = true;
                     this.progress = 0;
-                    this.addedEpisodes = 0;
-                    this.totalEpisodes = 0;
-                    
+                    this.processedEpisodes = 0;
+                    this.startTime = Date.now();
                     try {
-                        const response = await axios.post('/add_to_playlist', {
-                            anime_url: this.selectedAnime.url,
-                            title: this.selectedAnime.title
-                        });
-                        
-                        const taskId = response.data.task_id;
-                        await this.checkAddToPlaylistStatus(taskId);
-                    } catch (error) {
-                        console.error('Errore nell\'aggiunta della serie alla playlist:', error);
-                        alert('Si è verificato un errore nell\'aggiunta della serie alla playlist. Riprova.');
-                        this.loading = false;
-                        this.isAdding = false;
-                    }
-                },
-                async checkAddToPlaylistStatus(taskId) {
-                    while (true) {
-                        try {
-                            const response = await axios.get(`/task_status/${taskId}`);
-                            const taskInfo = response.data;
-                            
-                            console.log("Stato del task di aggiunta alla playlist:", taskInfo);
-                            
-                            if (taskInfo.error) {
-                                this.loading = false;
-                                this.isAdding = false;
-                                alert('Il task di aggiunta alla playlist è scaduto o non è più disponibile.');
-                                break;
-                            }
-                            
-                            this.addedEpisodes = taskInfo.added_episodes || 0;
-                            this.totalEpisodes = taskInfo.total_episodes || 0;
-                            this.progress = this.totalEpisodes > 0 ? (this.addedEpisodes / this.totalEpisodes) * 100 : 0;
-                            
-                            if (taskInfo.state === 'SUCCESS') {
-                                this.loading = false;
-                                this.isAdding = false;
-                                alert('Serie aggiunta alla playlist con successo!');
-                                // Qui puoi aggiungere la logica per aggiornare la playlist visualizzata
-                                break;
-                            } else if (taskInfo.state === 'FAILURE') {
-                                this.loading = false;
-                                this.isAdding = false;
-                                alert('Si è verificato un errore durante l\'aggiunta della serie alla playlist: ' + (taskInfo.error || 'Errore sconosciuto'));
-                                break;
-                            }
-                            
-                            await new Promise(resolve => setTimeout(resolve, 500));  // Controlla ogni mezzo secondo
-                        } catch (error) {
-                            console.error('Errore nel controllo dello stato del task di aggiunta alla playlist:', error);
-                            this.loading = false;
-                            this.isAdding = false;
-                            alert('Si è verificato un errore nel controllo dello stato dell\'aggiunta alla playlist.');
-                            break;
+                        if (!this.selectedAnime) {
+                            throw new Error("Nessuna serie selezionata");
                         }
+                        const animeUrl = this.selectedAnime.url;
+                        console.log("DEBUG: URL anime:", animeUrl);
+                        const response = await axios.post('/episodes', new URLSearchParams({ anime_url: animeUrl }));
+                        console.log("DEBUG: Risposta episodi per playlist:", response.data);
+                        const episodes = response.data;
+                        this.totalEpisodes = episodes.length;
+
+                        const title = this.selectedAnime.title;
+                        const processedEpisodes = [];
+
+                        for (let i = 0; i < episodes.length; i++) {
+                            const episode = episodes[i];
+                            const streamResponse = await axios.post('/stream', new URLSearchParams({ episode_url: episode.url }));
+                            console.log(`DEBUG: Risposta streaming per episodio ${i + 1}:`, streamResponse.data);
+                            
+                            let episodeUrl = '';
+                            if (streamResponse.data.video_url) {
+                                episodeUrl = streamResponse.data.video_url;
+                            } else if (streamResponse.data.streaming_url) {
+                                episodeUrl = streamResponse.data.streaming_url;
+                            }
+                            
+                            processedEpisodes.push({
+                                title: episode.title,
+                                url: episodeUrl
+                            });
+                            
+                            this.processedEpisodes = i + 1;
+                            this.progress = Math.round((this.processedEpisodes / this.totalEpisodes) * 100);
+                            console.log(`Debug: Episode ${this.processedEpisodes}/${this.totalEpisodes} processed. Progress: ${this.progress}%`);
+                        }
+
+                        this.playlist.push({ title: title, episodes: processedEpisodes });
+                        console.log("DEBUG: Playlist aggiornata:", this.playlist);
+                        await this.updateSharedPlaylist();
+                    } catch (error) {
+                        console.error('DEBUG: Errore nell\'aggiungere alla lista:', error);
+                        alert('Errore nell\'aggiungere la serie alla lista: ' + error.message);
+                    } finally {
+                        this.loading = false;
+                        this.progress = 0;
+                        this.processedEpisodes = 0;
+                        this.totalEpisodes = 0;
+                        console.log("Debug: addSeriesToPlaylist finished");
                     }
                 },
                 async downloadPlaylist() {
@@ -667,79 +642,6 @@
                     const estimatedTotalTime = (elapsedTime / currentProgress) * 100;
                     this.estimatedTime = Math.max(0, estimatedTotalTime - elapsedTime);
                     console.log("Debug: New estimatedTime:", this.estimatedTime);
-                },
-
-                async downloadSeries() {
-                    if (!this.selectedAnime) {
-                        alert('Nessuna serie selezionata');
-                        return;
-                    }
-                    
-                    this.loading = true;
-                    this.progress = 0;
-                    this.processedEpisodes = 0;
-                    this.downloadedSize = 0;
-                    this.totalSize = 0;
-                    
-                    try {
-                        const response = await axios.post('/download_series', {
-                            anime_url: this.selectedAnime.url,
-                            title: this.selectedAnime.title
-                        });
-                        
-                        const taskId = response.data.task_id;
-                        this.checkTaskStatus(taskId);
-                    } catch (error) {
-                        console.error('Errore nell\'avvio del download della serie:', error);
-                        alert('Si è verificato un errore nell\'avvio del download della serie. Riprova.');
-                        this.loading = false;
-                    }
-                },
-                
-                async checkTaskStatus(taskId) {
-                    while (true) {
-                        try {
-                            const response = await axios.get(`/task_status/${taskId}`);
-                            const taskInfo = response.data;
-                            
-                            console.log("Stato del task:", taskInfo);
-                            
-                            if (taskInfo.error) {
-                                this.loading = false;
-                                alert('Il task di download è scaduto o non è più disponibile.');
-                                break;
-                            }
-                            
-                            this.downloadedSize = taskInfo.downloaded_size || 0;
-                            this.totalSize = taskInfo.total_size || 0;
-                            this.totalEpisodes = taskInfo.total_episodes || 0;
-                            this.processedEpisodes = taskInfo.current_episode || 0;
-                            this.progress = this.totalSize > 0 ? (this.downloadedSize / this.totalSize) * 100 : 0;
-                            
-                            if (taskInfo.state === 'SUCCESS') {
-                                this.loading = false;
-                                window.location.href = `/download_file/${taskId}`;
-                                break;
-                            } else if (taskInfo.state === 'FAILURE') {
-                                this.loading = false;
-                                alert('Si è verificato un errore durante il download della serie: ' + (taskInfo.error || 'Errore sconosciuto'));
-                                break;
-                            }
-                            
-                            await new Promise(resolve => setTimeout(resolve, 1000));  // Controlla ogni secondo
-                        } catch (error) {
-                            console.error('Errore nel controllo dello stato del task:', error);
-                            await new Promise(resolve => setTimeout(resolve, 5000));  // Attendi 5 secondi in caso di errore
-                        }
-                    }
-                },
-                
-                formatSize(bytes) {
-                    if (bytes === 0) return '0 Bytes';
-                    const k = 1024;
-                    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-                    const i = Math.floor(Math.log(bytes) / Math.log(k));
-                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
                 },
             },
             watch: {

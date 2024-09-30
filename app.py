@@ -1,29 +1,16 @@
-from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
+from collections import defaultdict
 import os
 from dotenv import load_dotenv
 from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
 import json
 import uuid
-import zipfile
-import tempfile
-import threading
-import time
-import logging
-import aiohttp
-import asyncio
-from werkzeug.serving import run_simple
-import concurrent.futures
-import aiofiles
-from concurrent.futures import ThreadPoolExecutor
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///playlists.db')
@@ -58,185 +45,6 @@ season = Season()
 renamed_titles = {}
 
 app.secret_key = os.getenv('SECRET_KEY', 'una_chiave_segreta_predefinita')
-
-download_tasks = {}
-
-async def get_total_size(episodes):
-    async with aiohttp.ClientSession() as session:
-        tasks = []
-        for episode in episodes:
-            streaming_url = get_streaming_url(episode['url'])
-            if streaming_url:
-                video_url = extract_video_url(streaming_url)
-                if video_url:
-                    tasks.append(get_file_size(session, video_url))
-        sizes = await asyncio.gather(*tasks)
-        return sum(sizes)
-
-async def get_file_size(session, url):
-    async with session.head(url) as response:
-        return int(response.headers.get('Content-Length', 0))
-
-async def download_mp4(mp4_url, output_file, task_id, current_episode):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(mp4_url, headers=headers) as response:
-                if response.status != 200:
-                    logger.error(f"Errore nel download dell'episodio {current_episode}: Status {response.status}")
-                    return 0
-                file_size = int(response.headers.get('content-length', 0))
-                downloaded_size = 0
-                async with aiofiles.open(output_file, 'wb') as f:
-                    async for chunk in response.content.iter_chunked(8192):  # Aumentato a 8KB per chunk
-                        await f.write(chunk)
-                        downloaded_size += len(chunk)
-                        if downloaded_size % (1024 * 1024) == 0:  # Aggiorna ogni 1MB
-                            update_task_status(task_id, downloaded_size, current_episode)
-                logger.info(f"Episodio {current_episode} scaricato con successo. Dimensione: {downloaded_size}")
-                return downloaded_size
-    except Exception as e:
-        logger.error(f"Errore nel download dell'episodio {current_episode}: {str(e)}")
-        return 0
-
-async def download_episodes(episodes, temp_dir, task_id):
-    tasks = []
-    for i, episode in enumerate(episodes, 1):
-        streaming_url = get_streaming_url(episode['url'])
-        if streaming_url:
-            video_url = extract_video_url(streaming_url)
-            if video_url:
-                output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
-                task = download_mp4(video_url, output_file, task_id, i)
-                tasks.append(task)
-    return await asyncio.gather(*tasks)
-
-def download_series_task(task_id, anime_url, title):
-    logger.info(f"Inizio download della serie: {title}")
-    episodes = get_episodes(anime_url)
-    total_episodes = len(episodes)
-    
-    # Calcola la dimensione totale in modo sincrono
-    total_size = sum(get_file_size_sync(get_streaming_url(episode['url'])) for episode in episodes)
-    
-    update_task_status(task_id, 0, 0, total_episodes, total_size=total_size)
-    
-    with tempfile.TemporaryDirectory() as temp_dir:
-        for i, episode in enumerate(episodes, 1):
-            streaming_url = get_streaming_url(episode['url'])
-            if streaming_url:
-                video_url = extract_video_url(streaming_url)
-                if video_url:
-                    output_file = os.path.join(temp_dir, f'episode_{i}.mp4')
-                    downloaded_size = download_mp4_sync(video_url, output_file, task_id, i)
-                    update_task_status(task_id, downloaded_size, i, total_episodes, total_size=total_size)
-
-        total_downloaded_size = sum(os.path.getsize(os.path.join(temp_dir, f)) for f in os.listdir(temp_dir) if f.endswith('.mp4'))
-
-        if total_downloaded_size > 0:
-            zip_file = os.path.join(temp_dir, f'{title}.zip')
-            create_zip(temp_dir, zip_file)
-            
-            permanent_zip_file = os.path.join('/tmp', f'{title}_{uuid.uuid4()}.zip')
-            os.rename(zip_file, permanent_zip_file)
-            
-            update_task_status(task_id, total_downloaded_size, total_episodes, total_episodes, state='SUCCESS', file_path=permanent_zip_file, total_size=total_size)
-            logger.info(f"Download della serie completato con successo: {title}")
-        else:
-            update_task_status(task_id, 0, 0, total_episodes, state='FAILURE', error='Nessun episodio scaricato con successo', total_size=total_size)
-            logger.error(f"Nessun episodio scaricato con successo per la serie: {title}")
-
-def get_file_size_sync(url):
-    try:
-        response = requests.head(url)
-        return int(response.headers.get('Content-Length', 0))
-    except:
-        return 0
-
-def download_mp4_sync(mp4_url, output_file, task_id, current_episode):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    try:
-        with requests.get(mp4_url, headers=headers, stream=True) as response:
-            response.raise_for_status()
-            file_size = int(response.headers.get('content-length', 0))
-            downloaded_size = 0
-            with open(output_file, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded_size += len(chunk)
-                        if downloaded_size % (1024 * 1024) == 0:  # Aggiorna ogni 1MB
-                            update_task_status(task_id, downloaded_size, current_episode)
-            logger.info(f"Episodio {current_episode} scaricato con successo. Dimensione: {downloaded_size}")
-            return downloaded_size
-    except Exception as e:
-        logger.error(f"Errore nel download dell'episodio {current_episode}: {str(e)}")
-        return 0
-
-def update_task_status(task_id, downloaded_size, current_episode, total_episodes=None, state='PENDING', file_path=None, error=None, total_size=None, added_episodes=None):
-    task = download_tasks.get(task_id, {})
-    task['state'] = state
-    task['downloaded_size'] = downloaded_size
-    task['current_episode'] = current_episode
-    if total_episodes is not None:
-        task['total_episodes'] = total_episodes
-    if total_size is not None:
-        task['total_size'] = total_size
-    if added_episodes is not None:
-        task['added_episodes'] = added_episodes
-    task['file_path'] = file_path
-    task['error'] = error
-    task['last_update'] = time.time()
-    download_tasks[task_id] = task
-    logger.info(f"Stato del task {task_id} aggiornato: {task}")
-
-@app.route('/download_series', methods=['POST'])
-def download_series():
-    data = request.json
-    anime_url = data['anime_url']
-    title = data['title']
-    
-    task_id = str(uuid.uuid4())
-    download_tasks[task_id] = {
-        'state': 'PENDING',
-        'downloaded_size': 0,
-        'current_episode': 0,
-        'total_episodes': 0,
-        'file_path': None,
-        'error': None,
-        'last_update': time.time()
-    }
-    
-    # Avvia il download in un thread separato
-    thread = threading.Thread(target=download_series_task, args=(task_id, anime_url, title))
-    thread.start()
-    
-    logger.info(f"Task di download avviato: {task_id}")
-    return jsonify({'task_id': task_id}), 202
-
-@app.route('/task_status/<task_id>')
-def task_status(task_id):
-    task = download_tasks.get(task_id, {})
-    if task:
-        # Rimuovi il task se è inattivo da più di 1 ora
-        if time.time() - task.get('last_update', 0) > 3600:
-            del download_tasks[task_id]
-            return jsonify({'error': 'Task non trovato o scaduto'}), 404
-    logger.info(f"Richiesta stato del task {task_id}: {task}")
-    return jsonify(task)
-
-@app.route('/download_file/<task_id>')
-def download_file(task_id):
-    task = download_tasks.get(task_id, {})
-    if task.get('state') == 'SUCCESS':
-        file_path = task['file_path']
-        return send_file(file_path, as_attachment=True, download_name=f"{task_id}.zip")
-    else:
-        return jsonify({"error": "Il file non è ancora pronto per il download"}), 404
 
 @app.route('/rename_title', methods=['POST'])
 def rename_title():
@@ -296,12 +104,9 @@ def extract_video_url(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        print(f"Cercando URL video in: {url}")
-
         iframe = soup.find('iframe')
         if iframe and 'src' in iframe.attrs:
             iframe_src = iframe['src']
-            print(f"Trovato iframe con src: {iframe_src}")
             iframe_response = requests.get(iframe_src)
             iframe_response.raise_for_status()
             video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
@@ -310,27 +115,22 @@ def extract_video_url(url):
             for script in iframe_soup.find_all('script'):
                 match = re.search(video_pattern, str(script))
                 if match:
-                    print(f"URL video trovato: {match.group(0)}")
                     return match.group(0)
 
             match = re.search(video_pattern, iframe_response.text)
             if match:
-                print(f"URL video trovato: {match.group(0)}")
                 return match.group(0)
 
         video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
         for script in soup.find_all('script'):
             match = re.search(video_pattern, str(script))
             if match:
-                print(f"URL video trovato: {match.group(0)}")
                 return match.group(0)
 
         match = re.search(video_pattern, response.text)
         if match:
-            print(f"URL video trovato: {match.group(0)}")
             return match.group(0)
 
-        print("Nessun URL video trovato")
     except requests.RequestException as e:
         print(f"Errore nell'estrazione dell'URL video: {e}")
 
@@ -577,53 +377,10 @@ def update_shared_playlist():
     
     return jsonify({'share_url': share_url, 'share_id': share_id})
 
-@app.route('/add_to_playlist', methods=['POST'])
-def add_to_playlist():
-    data = request.json
-    anime_url = data['anime_url']
-    title = data['title']
-    
-    task_id = str(uuid.uuid4())
-    download_tasks[task_id] = {
-        'state': 'ADDING',
-        'added_episodes': 0,
-        'total_episodes': 0,
-        'error': None,
-        'last_update': time.time()
-    }
-    
-    # Avvia l'aggiunta alla playlist in un thread separato
-    executor = ThreadPoolExecutor(max_workers=1)
-    executor.submit(add_series_to_playlist_task, task_id, anime_url, title)
-    
-    logger.info(f"Task di aggiunta alla playlist avviato: {task_id}")
-    return jsonify({'task_id': task_id}), 202
-
-def add_series_to_playlist_task(task_id, anime_url, title):
-    episodes = get_episodes(anime_url)
-    total_episodes = len(episodes)
-    
-    update_task_status(task_id, 0, 0, total_episodes, state='ADDING', added_episodes=0)
-    
-    for i, episode in enumerate(episodes, 1):
-        # Simula l'aggiunta di un episodio
-        time.sleep(0.1)  # Simula un breve ritardo
-        update_task_status(task_id, 0, i, total_episodes, state='ADDING', added_episodes=i)
-    
-    update_task_status(task_id, 0, total_episodes, total_episodes, state='SUCCESS', added_episodes=total_episodes)
-    logger.info(f"Aggiunta della serie alla playlist completata con successo: {title}")
-
-def create_zip(source_dir, output_file):
-    with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, _, files in os.walk(source_dir):
-            for file in files:
-                if file.endswith('.mp4'):
-                    zipf.write(os.path.join(root, file), file)
-
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    run_simple('localhost', 5000, app, use_reloader=True, use_debugger=True)
+    app.run(debug=True)
 else:
     # Questo blocco verrà eseguito quando l'app è avviata da Gunicorn
     with app.app_context():
