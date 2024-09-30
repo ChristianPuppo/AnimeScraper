@@ -423,6 +423,19 @@ def download_anime():
     
     return Response(stream_with_context(generate()), content_type='text/plain')
 
+@app.route('/get_episodes', methods=['POST'])
+def get_episodes():
+    anime_url = request.json['anime_url']
+    episodes = animedownloader.get_episodes(anime_url)
+    return jsonify(episodes)
+
+@app.route('/get_video_url', methods=['POST'])
+def get_video_url():
+    episode_url = request.json['episode_url']
+    streaming_url = animedownloader.get_streaming_url(episode_url)
+    video_url = animedownloader.extract_video_url(streaming_url)
+    return jsonify({"video_url": video_url})
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

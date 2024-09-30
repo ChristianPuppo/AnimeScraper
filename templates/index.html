@@ -342,7 +342,7 @@
     </div>
 
     <!-- Aggiungi questa sezione alla fine del file, appena prima della chiusura del tag </body> -->
-    <div class="mt-12 bg-gray-900 p-4 rounded-lg w-full max-w-4xl mx-auto">
+    <div class="mt-12 bg-gray-900 p-4 rounded-lg w-full max-w-4xl mx-auto fixed bottom-0 left-0 right-0">
         <h2 class="text-2xl font-semibold mb-4 text-blue-300">Terminale di Download</h2>
         <div id="terminal" class="bg-black text-green-400 p-4 rounded h-64 overflow-y-auto font-mono text-sm"></div>
         <div class="mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
@@ -667,6 +667,7 @@
             terminal.scrollTop = terminal.scrollHeight;
         }
 
+        // Aggiungi queste funzioni allo script esistente
         async function startDownload() {
             const query = document.getElementById('downloadQuery').value;
             appendToTerminal(`Ricerca di: ${query}`);
@@ -689,23 +690,54 @@
                     const selectedAnime = results[choice - 1];
                     appendToTerminal(`Hai selezionato: ${selectedAnime.title}`);
                     
-                    const downloadResponse = await fetch('/download_anime', {
+                    const episodesResponse = await fetch('/get_episodes', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({anime_url: selectedAnime.url})
                     });
+                    const episodes = await episodesResponse.json();
                     
-                    const reader = downloadResponse.body.getReader();
-                    while (true) {
-                        const {done, value} = await reader.read();
-                        if (done) break;
-                        appendToTerminal(new TextDecoder().decode(value));
+                    for (let i = 0; i < episodes.length; i++) {
+                        appendToTerminal(`Scaricamento episodio ${i + 1}...`);
+                        await downloadEpisode(episodes[i].url, `${selectedAnime.title}_Episodio_${i + 1}.mp4`);
+                        appendToTerminal(`Episodio ${i + 1} scaricato.`);
                     }
+                    
+                    appendToTerminal('Download completato.');
                 } else {
                     appendToTerminal('Selezione non valida.');
                 }
             } catch (error) {
                 appendToTerminal(`Errore: ${error.message}`);
+            }
+        }
+
+        async function downloadEpisode(episodeUrl, filename) {
+            try {
+                const response = await fetch('/get_video_url', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({episode_url: episodeUrl})
+                });
+                const data = await response.json();
+                
+                if (data.video_url) {
+                    const videoResponse = await fetch(data.video_url);
+                    const blob = await videoResponse.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    throw new Error('URL video non trovato');
+                }
+            } catch (error) {
+                throw new Error(`Errore nel download dell'episodio: ${error.message}`);
             }
         }
     </script>
