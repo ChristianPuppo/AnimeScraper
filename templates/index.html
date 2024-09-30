@@ -341,12 +341,13 @@
         </div>
     </div>
 
-    <div class="mt-12 bg-gray-900 p-4 rounded-lg">
+    <!-- Aggiungi questa sezione alla fine del file, appena prima della chiusura del tag </body> -->
+    <div class="mt-12 bg-gray-900 p-4 rounded-lg w-full max-w-4xl mx-auto">
         <h2 class="text-2xl font-semibold mb-4 text-blue-300">Terminale di Download</h2>
-        <div id="terminal" class="bg-black text-green-400 p-4 rounded h-64 overflow-y-auto font-mono"></div>
-        <div class="mt-4 flex space-x-2">
-            <input id="downloadQuery" type="text" class="input p-2 flex-grow" placeholder="Cerca anime da scaricare">
-            <button onclick="startDownload()" class="btn btn-primary text-white p-2">Scarica</button>
+        <div id="terminal" class="bg-black text-green-400 p-4 rounded h-64 overflow-y-auto font-mono text-sm"></div>
+        <div class="mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+            <input id="downloadQuery" type="text" class="input p-2 flex-grow w-full sm:w-auto" placeholder="Cerca anime da scaricare">
+            <button onclick="startDownload()" class="btn btn-primary text-white p-2 w-full sm:w-auto">Scarica</button>
         </div>
     </div>
 
