@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session, stream_with_context
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 import requests
 from bs4 import BeautifulSoup
@@ -11,8 +11,6 @@ from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
 import json
 import uuid
-import time
-import animedownloader  # Importa il tuo script animedownloader.py
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///playlists.db')
@@ -392,49 +390,6 @@ def update_shared_playlist():
     share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
     
     return jsonify({'share_url': share_url, 'share_id': share_id})
-
-@app.route('/search_anime', methods=['POST'])
-def search_anime():
-    query = request.json['query']
-    results = animedownloader.search_anime(query)
-    return jsonify([{'title': title, 'url': url} for title, url in results])
-
-@app.route('/download_anime', methods=['POST'])
-def download_anime():
-    anime_url = request.json['anime_url']
-    
-    def generate():
-        episodes = animedownloader.get_episodes(anime_url)
-        yield f"Trovati {len(episodes)} episodi.\n"
-        
-        for i, (ep_title, ep_url) in enumerate(episodes, 1):
-            streaming_url = animedownloader.get_streaming_url(ep_url)
-            video_url = animedownloader.extract_video_url(streaming_url)
-            if video_url:
-                yield f"Scaricamento episodio {i}: {ep_title}\n"
-                # Qui dovresti implementare la logica di download effettiva
-                # Per ora, simuliamo solo il download
-                time.sleep(1)
-                yield f"Episodio {i} scaricato con successo.\n"
-            else:
-                yield f"Impossibile trovare l'URL video per l'episodio {i}.\n"
-        
-        yield "Download completato.\n"
-    
-    return Response(stream_with_context(generate()), content_type='text/plain')
-
-@app.route('/get_episodes', methods=['POST'])
-def get_episodes():
-    anime_url = request.json['anime_url']
-    episodes = animedownloader.get_episodes(anime_url)
-    return jsonify(episodes)
-
-@app.route('/get_video_url', methods=['POST'])
-def get_video_url():
-    episode_url = request.json['episode_url']
-    streaming_url = animedownloader.get_streaming_url(episode_url)
-    video_url = animedownloader.extract_video_url(streaming_url)
-    return jsonify({"video_url": video_url})
 
 if __name__ == '__main__':
     with app.app_context():
