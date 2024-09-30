@@ -341,6 +341,15 @@
         </div>
     </div>
 
+    <div class="mt-12 bg-gray-900 p-4 rounded-lg">
+        <h2 class="text-2xl font-semibold mb-4 text-blue-300">Terminale di Download</h2>
+        <div id="terminal" class="bg-black text-green-400 p-4 rounded h-64 overflow-y-auto font-mono"></div>
+        <div class="mt-4 flex space-x-2">
+            <input id="downloadQuery" type="text" class="input p-2 flex-grow" placeholder="Cerca anime da scaricare">
+            <button onclick="startDownload()" class="btn btn-primary text-white p-2">Scarica</button>
+        </div>
+    </div>
+
     <script>
         new Vue({
             el: '#app',
@@ -650,6 +659,54 @@
                 }
             },
         });
+
+        function appendToTerminal(message) {
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML += message + '<br>';
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function startDownload() {
+            const query = document.getElementById('downloadQuery').value;
+            appendToTerminal(`Ricerca di: ${query}`);
+            
+            try {
+                const searchResponse = await fetch('/search_anime', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: query})
+                });
+                const results = await searchResponse.json();
+                
+                appendToTerminal('Risultati della ricerca:');
+                results.forEach((result, index) => {
+                    appendToTerminal(`${index + 1}. ${result.title}`);
+                });
+                
+                const choice = prompt('Seleziona il numero dell\'anime desiderato:');
+                if (choice && choice > 0 && choice <= results.length) {
+                    const selectedAnime = results[choice - 1];
+                    appendToTerminal(`Hai selezionato: ${selectedAnime.title}`);
+                    
+                    const downloadResponse = await fetch('/download_anime', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({anime_url: selectedAnime.url})
+                    });
+                    
+                    const reader = downloadResponse.body.getReader();
+                    while (true) {
+                        const {done, value} = await reader.read();
+                        if (done) break;
+                        appendToTerminal(new TextDecoder().decode(value));
+                    }
+                } else {
+                    appendToTerminal('Selezione non valida.');
+                }
+            } catch (error) {
+                appendToTerminal(`Errore: ${error.message}`);
+            }
+        }
     </script>
 </body>
 </html>
