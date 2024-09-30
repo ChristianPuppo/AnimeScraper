@@ -28,6 +28,8 @@
             width: 100%;
             max-width: 800px;
             margin: 1rem auto;
+            position: relative;
+            overflow: hidden;
         }
         .container {
             max-width: 100%;
@@ -230,6 +232,26 @@
             .mt-2-mobile {
                 margin-top: 0.5rem;
             }
+        }
+
+        @keyframes rgb-glow {
+            0% { box-shadow: 0 0 20px 10px rgba(255, 0, 0, 0.5); }
+            33% { box-shadow: 0 0 20px 10px rgba(0, 255, 0, 0.5); }
+            66% { box-shadow: 0 0 20px 10px rgba(0, 0, 255, 0.5); }
+            100% { box-shadow: 0 0 20px 10px rgba(255, 0, 0, 0.5); }
+        }
+
+        .main-container::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            z-index: -1;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            animation: rgb-glow 10s linear infinite;
         }
     </style>
 </head>
