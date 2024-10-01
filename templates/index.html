@@ -300,9 +300,16 @@
             <div v-if="playlist.length" class="list-container">
                 <h2 class="text-2xl font-semibold mb-3 text-primary">Lista delle serie:</h2>
                 <ul>
-                    <li v-for="(item, index) in playlist" :key="index" class="playlist-item mb-2">
+                    <li v-for="(item, index) in playlist" :key="index" class="playlist-item mb-4">
                         <div v-if="!item.isRenaming" class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                            <span class="mb-2 sm:mb-0" v-text="item.title + ' - ' + item.episodes.length + ' episodi'"></span>
+                            <div class="flex items-center w-full">
+                                <button @click="toggleSeriesExpansion(index)" class="mr-2 focus:outline-none">
+                                    <svg :class="{'transform rotate-180': item.isExpanded}" class="w-4 h-4 transition-transform duration-200" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
+                                <span class="mb-2 sm:mb-0" v-text="item.title + ' - ' + item.episodes.length + ' episodi'"></span>
+                            </div>
                             <div class="flex items-center">
                                 <button @click="startRenaming(index)" class="btn btn-secondary text-white p-1 text-sm mr-2">Rinomina</button>
                                 <button @click="removeFromPlaylist(index)" class="btn bg-red-500 hover:bg-red-600 text-white p-1 text-sm">
@@ -318,6 +325,22 @@
                                 <button @click="renameSeries(index)" class="btn btn-secondary text-white p-2 text-sm mr-2">Salva</button>
                                 <button @click="cancelRenaming(index)" class="btn btn-secondary text-white p-2 text-sm">Annulla</button>
                             </div>
+                        </div>
+                        <div v-if="item.isExpanded" class="mt-2">
+                            <ul class="pl-6">
+                                <li v-for="(episode, epIndex) in item.displayedEpisodes" :key="epIndex" class="mb-2">
+                                    <div class="flex items-center">
+                                        <span v-if="!episode.isRenaming" class="mr-2">{% raw %}{{ episode.title }}{% endraw %}</span>
+                                        <input v-else v-model="episode.newTitle" class="input p-1 mr-2" :placeholder="episode.title">
+                                        <button v-if="!episode.isRenaming" @click="startRenamingEpisode(index, epIndex)" class="btn btn-secondary text-white p-1 text-xs mr-1">Rinomina</button>
+                                        <button v-else @click="renameEpisode(index, epIndex)" class="btn btn-secondary text-white p-1 text-xs mr-1">Salva</button>
+                                        <button v-if="episode.isRenaming" @click="cancelRenamingEpisode(index, epIndex)" class="btn btn-secondary text-white p-1 text-xs">Annulla</button>
+                                    </div>
+                                </li>
+                            </ul>
+                            <button v-if="item.displayedEpisodes.length < item.episodes.length" @click="loadMoreEpisodes(index)" class="btn btn-secondary text-white p-2 text-sm mt-2">
+                                Carica altri episodi
+                            </button>
                         </div>
                     </li>
                 </ul>
@@ -471,7 +494,9 @@
                             
                             processedEpisodes.push({
                                 title: episode.title,
-                                url: episodeUrl
+                                url: episodeUrl,
+                                isRenaming: false,
+                                newTitle: ''
                             });
                             
                             this.processedEpisodes = i + 1;
@@ -479,7 +504,12 @@
                             console.log(`Debug: Episode ${this.processedEpisodes}/${this.totalEpisodes} processed. Progress: ${this.progress}%`);
                         }
 
-                        this.playlist.push({ title: title, episodes: processedEpisodes });
+                        this.playlist.push({ 
+                            title: title, 
+                            episodes: processedEpisodes,
+                            isExpanded: false,
+                            displayedEpisodes: processedEpisodes.slice(0, 20)
+                        });
                         console.log("DEBUG: Playlist aggiornata:", this.playlist);
                         await this.updateSharedPlaylist();
                     } catch (error) {
@@ -642,6 +672,38 @@
                     const estimatedTotalTime = (elapsedTime / currentProgress) * 100;
                     this.estimatedTime = Math.max(0, estimatedTotalTime - elapsedTime);
                     console.log("Debug: New estimatedTime:", this.estimatedTime);
+                },
+
+                toggleSeriesExpansion(index) {
+                    this.$set(this.playlist[index], 'isExpanded', !this.playlist[index].isExpanded);
+                },
+
+                loadMoreEpisodes(index) {
+                    const series = this.playlist[index];
+                    const currentLength = series.displayedEpisodes.length;
+                    const newEpisodes = series.episodes.slice(currentLength, currentLength + 20);
+                    series.displayedEpisodes.push(...newEpisodes);
+                },
+
+                startRenamingEpisode(seriesIndex, episodeIndex) {
+                    const episode = this.playlist[seriesIndex].displayedEpisodes[episodeIndex];
+                    this.$set(episode, 'isRenaming', true);
+                    this.$set(episode, 'newTitle', episode.title);
+                },
+
+                renameEpisode(seriesIndex, episodeIndex) {
+                    const episode = this.playlist[seriesIndex].displayedEpisodes[episodeIndex];
+                    if (episode.newTitle.trim()) {
+                        episode.title = episode.newTitle.trim();
+                    }
+                    episode.isRenaming = false;
+                    episode.newTitle = '';
+                },
+
+                cancelRenamingEpisode(seriesIndex, episodeIndex) {
+                    const episode = this.playlist[seriesIndex].displayedEpisodes[episodeIndex];
+                    episode.isRenaming = false;
+                    episode.newTitle = '';
                 },
             },
             watch: {

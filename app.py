@@ -167,11 +167,11 @@ def get_series_metadata(title, season_number=1):
             episodes = []
             for ep in season_details.episodes:
                 episode_name = ep.name if ep.name else f"Episodio {ep.episode_number}"
-                print(f"DEBUG: Episodio {ep.episode_number}: {episode_name}")
                 episodes.append({
                     'season_number': target_season.season_number,
                     'episode_number': ep.episode_number,
-                    'name': episode_name
+                    'name': episode_name,
+                    'title': f"S{target_season.season_number}E{ep.episode_number} - {episode_name}"
                 })
             print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
             return {
