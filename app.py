@@ -391,6 +391,19 @@ def update_shared_playlist():
     
     return jsonify({'share_url': share_url, 'share_id': share_id})
 
+@app.route('/get_series_metadata', methods=['POST'])
+def get_series_metadata_route():
+    data = request.json
+    title = data.get('title')
+    if not title:
+        return jsonify({"error": "Titolo mancante"}), 400
+    
+    metadata = get_series_metadata(title)
+    if metadata:
+        return jsonify(metadata)
+    else:
+        return jsonify({"error": "Metadata non trovati"}), 404
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

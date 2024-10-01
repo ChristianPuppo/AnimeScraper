@@ -480,6 +480,11 @@
                         const title = this.selectedAnime.title;
                         const processedEpisodes = [];
 
+                        // Richiedi i metadata della serie
+                        const metadataResponse = await axios.post('/get_series_metadata', { title: title });
+                        const seriesMetadata = metadataResponse.data;
+                        console.log("DEBUG: Metadata della serie:", seriesMetadata);
+
                         for (let i = 0; i < episodes.length; i++) {
                             const episode = episodes[i];
                             const streamResponse = await axios.post('/stream', new URLSearchParams({ episode_url: episode.url }));
@@ -492,8 +497,11 @@
                                 episodeUrl = streamResponse.data.streaming_url;
                             }
                             
+                            // Usa il titolo dell'episodio dai metadata se disponibile
+                            const episodeTitle = seriesMetadata.episodes[i] ? seriesMetadata.episodes[i].title : episode.title;
+                            
                             processedEpisodes.push({
-                                title: episode.title,
+                                title: episodeTitle,
                                 url: episodeUrl,
                                 isRenaming: false,
                                 newTitle: ''
