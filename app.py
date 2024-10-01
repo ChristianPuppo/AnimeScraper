@@ -143,8 +143,13 @@ def get_series_metadata(title, season_number=1):
         search_title = re.sub(r'\s*(\(ITA\)|\(SUB ITA\)|\(TV\)|\(OAV\)|\(OVA\))\s*', '', search_title).strip()
         
         # Rimuovi il numero della stagione dal titolo di ricerca
-        search_title = re.sub(r'\s+\d+$', '', search_title)
-        print(f"DEBUG: Titolo di ricerca modificato: {search_title}")
+        original_season_number = season_number
+        season_match = re.search(r'\s+(\d+)$', search_title)
+        if season_match:
+            season_number = int(season_match.group(1))
+            search_title = re.sub(r'\s+\d+$', '', search_title)
+        
+        print(f"DEBUG: Titolo di ricerca modificato: {search_title}, Stagione: {season_number}")
         
         search = tv.search(search_title)
         if not search:
@@ -176,7 +181,7 @@ def get_series_metadata(title, season_number=1):
             print(f"DEBUG: Totale episodi trovati: {len(episodes)}")
             return {
                 'id': best_match.id,
-                'title': details.name,
+                'title': f"{details.name} - Stagione {season_number}",
                 'original_title': details.original_name,
                 'overview': details.overview,
                 'first_air_date': details.first_air_date,

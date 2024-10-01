@@ -480,8 +480,12 @@
                         const title = this.selectedAnime.title;
                         const processedEpisodes = [];
 
+                        // Estrai il numero della stagione dal titolo, se presente
+                        const seasonMatch = title.match(/\s+(\d+)$/);
+                        const seasonNumber = seasonMatch ? parseInt(seasonMatch[1]) : 1;
+
                         // Richiedi i metadata della serie
-                        const metadataResponse = await axios.post('/get_series_metadata', { title: title });
+                        const metadataResponse = await axios.post('/get_series_metadata', { title: title, season_number: seasonNumber });
                         const seriesMetadata = metadataResponse.data;
                         console.log("DEBUG: Metadata della serie:", seriesMetadata);
 
@@ -513,7 +517,7 @@
                         }
 
                         this.playlist.push({ 
-                            title: title, 
+                            title: seriesMetadata.title || title, 
                             episodes: processedEpisodes,
                             isExpanded: false,
                             displayedEpisodes: processedEpisodes.slice(0, 20)
