@@ -11,7 +11,7 @@ import time
 
 init(autoreset=True)
 
-BASE_URL = "https://www.animesaturn.mx"
+BASE_URL = "https://www.animesaturn.cx"
 MAX_CONCURRENT_DOWNLOADS = 5
 
 def search_anime(query):
