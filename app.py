@@ -29,7 +29,7 @@ class SharedPlaylist(db.Model):
         self.name = name
         self.playlist = json.dumps(playlist)
 
-BASE_URL = "https://www.animesaturn.mx"
+BASE_URL = "https://www.animesaturn.cx"
 
 # Carica le variabili d'ambiente dal file .env
 load_dotenv()
