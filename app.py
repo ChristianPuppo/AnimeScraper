@@ -14,7 +14,7 @@ import uuid
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Questo permette richieste da qualsiasi origine
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5000", "https://animescraper.onrender.com"]}})
 
 # Configurazione del database
 database_url = os.environ.get('DATABASE_URL')
@@ -477,13 +477,27 @@ def stream_video(video_url):
 @app.route('/proxy')
 def proxy():
     url = request.args.get('url')
-    resp = requests.get(url, stream=True)
-    excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
-    headers = [(name, value) for (name, value) in resp.raw.headers.items()
-               if name.lower() not in excluded_headers]
-    response = Response(resp.content, resp.status_code, headers)
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    return response
+    if not url:
+        return jsonify({"error": "URL mancante"}), 400
+    
+    try:
+        resp = requests.get(url, stream=True, timeout=10)
+        resp.raise_for_status()
+        
+        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+        headers = [(name, value) for (name, value) in resp.raw.headers.items()
+                   if name.lower() not in excluded_headers]
+        
+        def generate():
+            for chunk in resp.iter_content(chunk_size=8192):
+                yield chunk
+        
+        response = Response(generate(), resp.status_code, headers)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
+    except requests.RequestException as e:
+        print(f"Errore proxy: {str(e)}")
+        return jsonify({"error": f"Errore nel proxy: {str(e)}"}), 500
 
 def init_db():
     with app.app_context():
