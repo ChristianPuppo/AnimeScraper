@@ -239,7 +239,7 @@ def stream():
         print(f"URL video estratto: {video_url}")
         return jsonify({"video_url": video_url})
     print("Impossibile trovare il link dello streaming.")
-    return jsonify({"error": "Impossibile trovare il link dello streaming."})
+    return jsonify({"error": "Impossibile trovare il link dello streaming."}), 404
 
 @app.route('/save_playlist', methods=['POST'])
 def save_playlist():

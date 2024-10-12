@@ -433,8 +433,8 @@
                     const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
                     console.log("DEBUG: Risposta streaming:", response.data);
                     if (response.data.video_url) {
-                        this.videoUrl = `/stream/${encodeURIComponent(response.data.video_url)}`;
-                        this.videoType = response.data.video_url.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
+                        this.videoUrl = response.data.video_url; // Usa l'URL diretto invece di passarlo attraverso il server
+                        this.videoType = this.videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
                         this.currentEpisodeIndex = index;
                         this.$nextTick(() => {
                             this.initVideoPlayer();
@@ -454,9 +454,15 @@
                             this.player = videojs(this.$refs.videoPlayer, {
                                 controls: true,
                                 autoplay: false,
-                                preload: 'auto'
+                                preload: 'auto',
+                                sources: [{
+                                    src: this.videoUrl,
+                                    type: this.videoType
+                                }]
                             });
-                            this.player.src({ type: this.videoType, src: this.videoUrl });
+                            this.player.on('error', (e) => {
+                                console.error('Video.js Error:', e);
+                            });
                         }
                     });
                 },
@@ -756,6 +762,11 @@
                     const episode = this.playlist[seriesIndex].displayedEpisodes[episodeIndex];
                     episode.isRenaming = false;
                     episode.newTitle = '';
+                },
+
+                handlePlayerError(error) {
+                    console.error('Video Player Error:', error);
+                    alert('Si è verificato un errore durante la riproduzione del video. Per favore, riprova.');
                 },
             },
             watch: {
