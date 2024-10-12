@@ -267,11 +267,12 @@ def stream():
         try:
             response = requests.head(video_url, timeout=5)
             response.raise_for_status()
-            print(f"DEBUG: L'URL video è accessibile. Codice di stato: {response.status_code}")
+            content_type = response.headers.get('Content-Type', '')
+            print(f"DEBUG: L'URL video è accessibile. Codice di stato: {response.status_code}, Content-Type: {content_type}")
+            return jsonify({"video_url": video_url, "content_type": content_type})
         except requests.RequestException as e:
             print(f"DEBUG: Errore nell'accesso all'URL video: {str(e)}")
             return jsonify({"error": f"Impossibile accedere all'URL video: {str(e)}"}), 404
-        return jsonify({"video_url": video_url})
     print("DEBUG: Impossibile trovare il link dello streaming.")
     return jsonify({"error": "Impossibile trovare il link dello streaming."}), 404
 

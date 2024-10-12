@@ -435,7 +435,7 @@
                         console.log("DEBUG: Risposta streaming:", response.data);
                         if (response.data.video_url) {
                             this.videoUrl = response.data.video_url;
-                            this.videoType = this.videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
+                            this.videoType = response.data.content_type || this.getVideoType(this.videoUrl);
                             this.currentEpisodeIndex = index;
                             this.$nextTick(() => {
                                 this.initVideoPlayer();
@@ -452,8 +452,14 @@
                         }
                         alert('Si è verificato un errore durante il recupero dello streaming. Riprova.');
                     }
-                    console.log("DEBUG: Fine getStreamingUrl");
                 },
+
+                getVideoType(url) {
+                    if (url.includes('.m3u8')) return 'application/x-mpegURL';
+                    if (url.includes('.mp4')) return 'video/mp4';
+                    return 'application/x-mpegURL'; // Default to HLS
+                },
+
                 initVideoPlayer() {
                     console.log("DEBUG: Inizializzazione del player video");
                     this.$nextTick(() => {
@@ -463,7 +469,10 @@
                         }
                         if (this.$refs.videoPlayer) {
                             console.log("DEBUG: Creazione nuovo player video");
-                            this.player = videojs(this.$refs.videoPlayer, {
+                            console.log("DEBUG: Video URL:", this.videoUrl);
+                            console.log("DEBUG: Video Type:", this.videoType);
+                            
+                            const playerOptions = {
                                 controls: true,
                                 autoplay: false,
                                 preload: 'auto',
@@ -471,17 +480,39 @@
                                     src: this.videoUrl,
                                     type: this.videoType
                                 }]
-                            });
+                            };
+
+                            this.player = videojs(this.$refs.videoPlayer, playerOptions);
+                            
                             this.player.on('error', (e) => {
                                 console.error('DEBUG: Video.js Error:', e);
                                 console.error('DEBUG: Video.js Error Details:', this.player.error());
+                                this.handleVideoError();
                             });
+
+                            this.player.on('loadedmetadata', () => {
+                                console.log("DEBUG: Video metadata loaded successfully");
+                            });
+
                             console.log("DEBUG: Player video inizializzato");
                         } else {
                             console.error("DEBUG: Elemento video non trovato");
                         }
                     });
                 },
+
+                handleVideoError() {
+                    console.log("DEBUG: Gestione errore video");
+                    if (this.videoType === 'application/x-mpegURL') {
+                        console.log("DEBUG: Tentativo di fallback a MP4");
+                        this.videoType = 'video/mp4';
+                        this.initVideoPlayer();
+                    } else {
+                        console.error("DEBUG: Impossibile riprodurre il video");
+                        alert("Impossibile riprodurre il video. Riprova più tardi o contatta l'amministratore.");
+                    }
+                },
+
                 playPreviousEpisode() {
                     if (this.hasPreviousEpisode) {
                         this.getStreamingUrl(this.episodes[this.currentEpisodeIndex - 1].url, this.currentEpisodeIndex - 1);
