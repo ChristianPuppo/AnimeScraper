@@ -285,9 +285,9 @@
 
             <div v-if="videoUrl" ref="videoPlayerSection" class="mb-6 card p-6">
                 <h2 class="text-2xl font-semibold mb-3 text-primary">Video Player</h2>
-                <video-js id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" width="640" height="360">
+                <video ref="videoPlayer" class="video-js vjs-big-play-centered" controls preload="auto" width="640" height="360">
                     <source :src="videoUrl" :type="videoType">
-                </video-js>
+                </video>
                 <div class="flex justify-between mt-4">
                     <button @click="playPreviousEpisode" class="btn btn-secondary text-white p-2" :disabled="!hasPreviousEpisode">Episodio Precedente</button>
                     <button @click="playNextEpisode" class="btn btn-secondary text-white p-2" :disabled="!hasNextEpisode">Episodio Successivo</button>
@@ -433,7 +433,7 @@
                     const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
                     console.log("DEBUG: Risposta streaming:", response.data);
                     if (response.data.video_url) {
-                        this.videoUrl = response.data.video_url;
+                        this.videoUrl = `/stream/${encodeURIComponent(response.data.video_url)}`;
                         this.videoType = this.videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
                         this.currentEpisodeIndex = index;
                         this.$nextTick(() => {
@@ -449,7 +449,11 @@
                     if (this.player) {
                         this.player.dispose();
                     }
-                    this.player = videojs('my-video');
+                    this.player = videojs(this.$refs.videoPlayer, {
+                        controls: true,
+                        autoplay: false,
+                        preload: 'auto'
+                    });
                     this.player.src({ type: this.videoType, src: this.videoUrl });
                 },
                 playPreviousEpisode() {
@@ -754,6 +758,9 @@
                 estimatedTime(newValue, oldValue) {
                     console.log(`Debug: estimatedTime changed from ${oldValue} to ${newValue}`);
                 }
+            },
+            mounted() {
+                this.initVideoPlayer();
             },
             beforeDestroy() {
                 if (this.player) {

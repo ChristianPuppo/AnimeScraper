@@ -426,8 +426,10 @@ def stream_video(video_url):
         decoded_url = unquote(video_url)
         # Effettua una richiesta al server video
         response = requests.get(decoded_url, stream=True)
-        return Response(response.iter_content(chunk_size=1024),
-                        content_type=response.headers['Content-Type'])
+        def generate():
+            for chunk in response.iter_content(chunk_size=1024):
+                yield chunk
+        return Response(generate(), content_type=response.headers['Content-Type'])
     except Exception as e:
         print(f"Errore nello streaming del video: {str(e)}")
         abort(500)
