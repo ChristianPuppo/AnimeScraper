@@ -284,13 +284,11 @@
             </div>
 
             <div v-if="videoUrl" ref="videoPlayerSection" class="mb-6 card p-6">
-                <h2 class="text-2xl font-semibold mb-3 text-primary">Video Player</h2>
-                <video ref="videoPlayer" class="video-js vjs-big-play-centered" controls preload="auto" width="640" height="360">
-                    <source :src="videoUrl" :type="videoType">
-                </video>
+                <h2 class="text-2xl font-semibold mb-3 text-primary">Link Video Diretto</h2>
+                <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
                 <div class="flex justify-between mt-4">
-                    <button @click="playPreviousEpisode" class="btn btn-secondary text-white p-2" :disabled="!hasPreviousEpisode">Episodio Precedente</button>
-                    <button @click="playNextEpisode" class="btn btn-secondary text-white p-2" :disabled="!hasNextEpisode">Episodio Successivo</button>
+                    <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-2">Copia Link</button>
+                    <a :href="videoUrl" target="_blank" class="btn btn-primary text-white p-2">Apri in una nuova scheda</a>
                 </div>
             </div>
 
@@ -393,8 +391,6 @@
                 processedEpisodes: 0,
                 totalEpisodes: 0,
                 currentEpisodeIndex: -1,
-                videoType: '',
-                player: null,
             },
             computed: {
                 hasPreviousEpisode() {
@@ -434,39 +430,11 @@
                         const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
                         console.log("DEBUG: Risposta streaming:", response.data);
                         if (response.data.video_url) {
-                            const proxyUrl = `/proxy?url=${encodeURIComponent(response.data.video_url)}`;
-                            console.log("DEBUG: URL proxy:", proxyUrl);
-                            
-                            // Verifica se l'URL del proxy è accessibile
-                            try {
-                                const proxyResponse = await axios.head(proxyUrl);
-                                console.log("DEBUG: Risposta HEAD del proxy:", proxyResponse.status, proxyResponse.headers);
-                            } catch (proxyError) {
-                                console.error("DEBUG: Errore nella verifica del proxy:", proxyError);
-                            }
-                            
-                            this.videoUrl = proxyUrl;
-                            this.videoType = response.data.content_type || this.getVideoType(response.data.video_url);
+                            this.videoUrl = response.data.video_url;
                             this.currentEpisodeIndex = index;
                             console.log("DEBUG: URL video finale:", this.videoUrl);
-                            console.log("DEBUG: Tipo video:", this.videoType);
-                            
-                            // Verifica se il video è accessibile
-                            try {
-                                const videoResponse = await axios.head(this.videoUrl);
-                                console.log("DEBUG: Risposta HEAD del video:", videoResponse.status, videoResponse.headers);
-                            } catch (videoError) {
-                                console.error("DEBUG: Errore nella verifica del video:", videoError);
-                            }
-                            
-                            // Rimuovi il player esistente prima di crearne uno nuovo
-                            if (this.player) {
-                                this.player.dispose();
-                                this.player = null;
-                            }
                             
                             this.$nextTick(() => {
-                                this.initVideoPlayer();
                                 this.scrollTo('videoPlayerSection');
                             });
                         } else {
@@ -479,132 +447,6 @@
                             console.error("DEBUG: Risposta del server:", error.response.data);
                         }
                         alert('Si è verificato un errore durante il recupero dello streaming. Riprova.');
-                    }
-                },
-
-                getVideoType(url) {
-                    if (url.includes('.m3u8')) return 'application/x-mpegURL';
-                    if (url.includes('.mp4')) return 'video/mp4';
-                    return 'application/x-mpegURL'; // Default to HLS
-                },
-
-                initVideoPlayer() {
-                    console.log("DEBUG: Inizializzazione del player video");
-                    this.$nextTick(() => {
-                        if (this.player) {
-                            console.log("DEBUG: Disposing del player esistente");
-                            try {
-                                this.player.dispose();
-                            } catch (error) {
-                                console.error("DEBUG: Errore durante il dispose del player:", error);
-                            }
-                            this.player = null;
-                        }
-                        
-                        if (this.$refs.videoPlayer) {
-                            console.log("DEBUG: Creazione nuovo player video");
-                            console.log("DEBUG: Video URL:", this.videoUrl);
-                            console.log("DEBUG: Video Type:", this.videoType);
-                            
-                            const playerOptions = {
-                                controls: true,
-                                autoplay: false,
-                                preload: 'auto',
-                                sources: [{
-                                    src: this.videoUrl,
-                                    type: this.videoType
-                                }],
-                                html5: {
-                                    vhs: {
-                                        overrideNative: true,
-                                        debug: true
-                                    },
-                                    nativeAudioTracks: false,
-                                    nativeVideoTracks: false
-                                }
-                            };
-
-                            try {
-                                this.player = videojs(this.$refs.videoPlayer, playerOptions);
-                                
-                                this.player.on('error', (e) => {
-                                    console.error('DEBUG: Video.js Error:', e);
-                                    console.error('DEBUG: Video.js Error Details:', this.player.error());
-                                    this.handleVideoError();
-                                });
-
-                                this.player.on('loadedmetadata', () => {
-                                    console.log("DEBUG: Video metadata loaded successfully");
-                                });
-
-                                this.player.on('loadeddata', () => {
-                                    console.log("DEBUG: Video data loaded successfully");
-                                });
-
-                                this.player.on('canplay', () => {
-                                    console.log("DEBUG: Video can be played");
-                                });
-
-                                this.player.on('playing', () => {
-                                    console.log("DEBUG: Video is playing");
-                                });
-
-                                console.log("DEBUG: Player video inizializzato");
-                            } catch (error) {
-                                console.error("DEBUG: Errore durante l'inizializzazione del player:", error);
-                            }
-                        } else {
-                            console.error("DEBUG: Elemento video non trovato");
-                        }
-                    });
-                },
-
-                handleVideoError() {
-                    console.log("DEBUG: Gestione errore video");
-                    if (this.videoType === 'application/x-mpegURL') {
-                        console.log("DEBUG: Tentativo di fallback a MP4");
-                        this.videoType = 'video/mp4';
-                        this.initVideoPlayer();
-                    } else if (this.videoType === 'video/mp4') {
-                        console.log("DEBUG: Tentativo di fallback a HLS");
-                        this.videoType = 'application/x-mpegURL';
-                        this.initVideoPlayer();
-                    } else {
-                        console.error("DEBUG: Impossibile riprodurre il video");
-                        this.checkVideoPlayability();
-                    }
-                },
-
-                async checkVideoPlayability() {
-                    console.log("DEBUG: Verifica della riproducibilità del video");
-                    try {
-                        const response = await fetch(this.videoUrl);
-                        const blob = await response.blob();
-                        const url = URL.createObjectURL(blob);
-                        const audio = new Audio(url);
-                        audio.oncanplaythrough = () => {
-                            console.log("DEBUG: Il video è riproducibile");
-                            URL.revokeObjectURL(url);
-                        };
-                        audio.onerror = () => {
-                            console.error("DEBUG: Il video non è riproducibile");
-                            URL.revokeObjectURL(url);
-                            alert("Impossibile riprodurre il video. Riprova più tardi o contatta l'amministratore.");
-                        };
-                    } catch (error) {
-                        console.error("DEBUG: Errore durante la verifica della riproducibilità:", error);
-                        alert("Errore durante la verifica del video. Riprova più tardi o contatta l'amministratore.");
-                    }
-                },
-
-                playPreviousEpisode() {
-                    if (this.hasPreviousEpisode) {
-                        this.getStreamingUrl(this.episodes[this.currentEpisodeIndex - 1].url, this.currentEpisodeIndex - 1);
-                    }
-                },
-                playNextEpisode() {
-                    if (this.hasNextEpisode) {
-                        this.getStreamingUrl(this.episodes[this.currentEpisodeIndex + 1].url, this.currentEpisodeIndex + 1);
                     }
                 },
                 scrollTo(refName) {
