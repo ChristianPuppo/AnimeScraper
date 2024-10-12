@@ -14,7 +14,7 @@ import uuid
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/stream/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})  # Questo permette richieste da qualsiasi origine
 
 # Configurazione del database
 database_url = os.environ.get('DATABASE_URL')
@@ -495,4 +495,4 @@ init_db()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0')  # Rimuoviamo il riferimento esplicito alla porta
