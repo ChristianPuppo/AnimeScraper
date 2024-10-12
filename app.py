@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 import requests
@@ -5,7 +6,6 @@ from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
 from collections import defaultdict
-import os
 from dotenv import load_dotenv
 from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
@@ -13,7 +13,13 @@ import json
 import uuid
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///playlists.db')
+
+# Configurazione del database
+database_url = os.environ.get('DATABASE_URL')
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///playlists.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -25,7 +31,7 @@ class SharedPlaylist(db.Model):
     def __init__(self, id, name, playlist):
         self.id = id
         self.name = name
-        self.playlist = json.dumps(playlist)
+        self.playlist = playlist
 
 BASE_URL = "https://www.animesaturn.cx"
 
@@ -298,7 +304,7 @@ def share_playlist():
         
         print(f"DEBUG: Creazione nuova playlist condivisa - ID: {share_id}, Nome: {playlist_name}")
         
-        new_playlist = SharedPlaylist(id=share_id, name=playlist_name, playlist=playlist)
+        new_playlist = SharedPlaylist(id=share_id, name=playlist_name, playlist=json.dumps(playlist))
         db.session.add(new_playlist)
         db.session.commit()
         
@@ -373,26 +379,29 @@ def generate_m3u(share_id):
 
 @app.route('/update_shared_playlist', methods=['POST'])
 def update_shared_playlist():
-    playlist = request.json['playlist']
-    playlist_name = request.json['playlist_name']
-    share_id = request.json.get('share_id')
+    try:
+        data = request.json
+        playlist = data.get('playlist')
+        playlist_name = data.get('playlist_name')
+        share_id = data.get('share_id')
 
-    if not share_id:
-        share_id = str(uuid.uuid4())
-        new_playlist = SharedPlaylist(id=share_id, name=playlist_name, playlist=playlist)
-        db.session.add(new_playlist)
-    else:
+        if not all([playlist, playlist_name, share_id]):
+            return jsonify({"error": "Dati mancanti per l'aggiornamento della playlist"}), 400
+
         shared_playlist = SharedPlaylist.query.get(share_id)
-        if shared_playlist:
-            shared_playlist.name = playlist_name
-            shared_playlist.playlist = json.dumps(playlist)
-        else:
-            return jsonify({'error': 'Playlist non trovata'}), 404
+        if not shared_playlist:
+            return jsonify({"error": "Playlist non trovata"}), 404
 
-    db.session.commit()
-    share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
-    
-    return jsonify({'share_url': share_url, 'share_id': share_id})
+        shared_playlist.name = playlist_name
+        shared_playlist.playlist = json.dumps(playlist)
+        db.session.commit()
+
+        share_url = url_for('download_shared_playlist', share_id=share_id, _external=True)
+        return jsonify({'share_url': share_url, 'share_id': share_id})
+    except Exception as e:
+        print(f"DEBUG: Errore durante l'aggiornamento della playlist condivisa - {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": "Si è verificato un errore durante l'aggiornamento della playlist"}), 500
 
 @app.route('/get_series_metadata', methods=['POST'])
 def get_series_metadata_route():
@@ -408,4 +417,5 @@ def get_series_metadata_route():
         return jsonify({"error": "Metadata non trovati"}), 404
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

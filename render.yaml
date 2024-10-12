@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: animescraper
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: animescraper_db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: TMDB_API_KEY
+        sync: false
+
+databases:
+  - name: animescraper_db
+    databaseName: animescraper
+    user: animescraper
