@@ -43,7 +43,7 @@ load_dotenv()
 # Configurazione TMDb
 tmdb = TMDb()
 tmdb.api_key = os.getenv('TMDB_API_KEY')
-tmdb.language = 'it,en'
+tmdb.language = 'it,en'  # Modifica questa riga
 tv = TV()
 season = Season()
 
@@ -76,16 +76,99 @@ def get_episodes(anime_url):
     episode_data = []
 
     for ep in episodes:
+        thumbnail_container = ep.find_previous('div', class_='container shadow rounded bg-dark-as-box mb-3 p-3 w-100 d-flex justify-content-center')
+        thumbnail_url = None
+        if thumbnail_container:
+            thumbnail_img = thumbnail_container.find('img', class_='img-fluid cover-anime rounded')
+            if thumbnail_img and 'src' in thumbnail_img.attrs:
+                thumbnail_url = thumbnail_img['src']
+
         episode_title = ep.get('title', '') or ep.text.strip()
         if not episode_title:
             episode_title = f"Episodio {len(episode_data) + 1}"
 
         episode_data.append({
             "title": episode_title,
-            "url": urljoin(BASE_URL, ep['href'])
+            "url": urljoin(BASE_URL, ep['href']),
+            "thumbnail": thumbnail_url
         })
 
     return episode_data
+
+def get_streaming_url(episode_url):
+    try:
+        print(f"DEBUG: Inizio estrazione URL streaming da: {episode_url}")
+        response = requests.get(episode_url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        streaming_link = soup.find('a', href=lambda href: href and 'watch?file=' in href)
+        if streaming_link:
+            watch_url = urljoin(BASE_URL, streaming_link['href'])
+            print(f"DEBUG: URL watch trovato: {watch_url}")
+            video_url = extract_video_url(watch_url)
+            if video_url:
+                print(f"DEBUG: URL video estratto con successo: {video_url}")
+                return video_url
+            else:
+                print("DEBUG: Impossibile estrarre l'URL video dalla pagina watch")
+        else:
+            print("DEBUG: Nessun link di streaming trovato nella pagina dell'episodio")
+    except requests.RequestException as e:
+        print(f"DEBUG: Errore durante la richiesta HTTP: {str(e)}")
+    except Exception as e:
+        print(f"DEBUG: Errore imprevisto durante l'estrazione dell'URL streaming: {str(e)}")
+    return None
+
+def extract_video_url(url):
+    try:
+        print(f"DEBUG: Inizio estrazione URL video da: {url}")
+        response = requests.get(url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        iframe = soup.find('iframe')
+        if iframe and 'src' in iframe.attrs:
+            iframe_src = iframe['src']
+            print(f"DEBUG: URL iframe trovato: {iframe_src}")
+            iframe_response = requests.get(iframe_src)
+            iframe_response.raise_for_status()
+            video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
+
+            iframe_soup = BeautifulSoup(iframe_response.text, 'html.parser')
+            for script in iframe_soup.find_all('script'):
+                match = re.search(video_pattern, str(script))
+                if match:
+                    video_url = match.group(0)
+                    print(f"DEBUG: URL video trovato nello script dell'iframe: {video_url}")
+                    return video_url
+
+            match = re.search(video_pattern, iframe_response.text)
+            if match:
+                video_url = match.group(0)
+                print(f"DEBUG: URL video trovato nel testo dell'iframe: {video_url}")
+                return video_url
+
+        video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
+        for script in soup.find_all('script'):
+            match = re.search(video_pattern, str(script))
+            if match:
+                video_url = match.group(0)
+                print(f"DEBUG: URL video trovato nello script della pagina principale: {video_url}")
+                return video_url
+
+        match = re.search(video_pattern, response.text)
+        if match:
+            video_url = match.group(0)
+            print(f"DEBUG: URL video trovato nel testo della pagina principale: {video_url}")
+            return video_url
+
+        print("DEBUG: Nessun URL video trovato")
+    except requests.RequestException as e:
+        print(f"DEBUG: Errore durante la richiesta HTTP: {str(e)}")
+    except Exception as e:
+        print(f"DEBUG: Errore imprevisto durante l'estrazione dell'URL video: {str(e)}")
+
+    return None
 
 def get_series_metadata(title, season_number=1):
     try:
@@ -93,6 +176,8 @@ def get_series_metadata(title, season_number=1):
         search_title = renamed_titles.get(title, title)
         search_title = re.sub(r'\s*(\(ITA\)|\(SUB ITA\)|\(TV\)|\(OAV\)|\(OVA\))\s*', '', search_title).strip()
         
+        # Rimuovi il numero della stagione dal titolo di ricerca
+        original_season_number = season_number
         season_match = re.search(r'\s+(\d+)$', search_title)
         if season_match:
             season_number = int(season_match.group(1))
@@ -110,6 +195,7 @@ def get_series_metadata(title, season_number=1):
             print(f"DEBUG: Serie trovata su TMDb: {best_match.name} (ID: {best_match.id})")
             details = tv.details(best_match.id)
             
+            # Cerca la stagione specificata
             target_season = next((s for s in details.seasons if s.season_number == season_number), None)
             if not target_season:
                 print(f"DEBUG: Stagione {season_number} non trovata, uso la prima stagione disponibile")
@@ -170,6 +256,33 @@ def episodes():
     print(f"Episodi trovati: {episodes}")
     return jsonify(episodes)
 
+@app.route('/stream', methods=['POST'])
+def stream():
+    episode_url = request.form['episode_url']
+    print(f"DEBUG: Richiesta per lo streaming dell'episodio: {episode_url}")
+    video_url = get_streaming_url(episode_url)
+    if video_url:
+        print(f"DEBUG: URL video estratto: {video_url}")
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            response = requests.head(video_url, timeout=5, headers=headers, allow_redirects=True)
+            response.raise_for_status()
+            content_type = response.headers.get('Content-Type', '')
+            print(f"DEBUG: L'URL video è accessibile. Codice di stato: {response.status_code}, Content-Type: {content_type}")
+            
+            return jsonify({
+                "video_url": video_url, 
+                "content_type": content_type,
+                "final_url": response.url
+            })
+        except requests.RequestException as e:
+            print(f"DEBUG: Errore nell'accesso all'URL video: {str(e)}")
+            return jsonify({"error": f"Impossibile accedere all'URL video: {str(e)}"}), 404
+    print("DEBUG: Impossibile trovare il link dello streaming.")
+    return jsonify({"error": "Impossibile trovare il link dello streaming."}), 404
+
 @app.route('/save_playlist', methods=['POST'])
 def save_playlist():
     playlist = request.json['playlist']
@@ -184,6 +297,7 @@ def save_playlist():
         series_title = series['title']
         print(f"DEBUG: Elaborazione serie: {series_title}")
         
+        # Estrai il numero della stagione dal titolo, se presente
         season_match = re.search(r'\s+(\d+)$', series_title)
         season_number = int(season_match.group(1)) if season_match else 1
         
@@ -347,13 +461,57 @@ def get_series_metadata_route():
     else:
         return jsonify({"error": "Metadata non trovati"}), 404
 
+@app.route('/stream/<path:video_url>')
+def stream_video(video_url):
+    try:
+        decoded_url = unquote(video_url)
+        response = requests.get(decoded_url, stream=True)
+        def generate():
+            for chunk in response.iter_content(chunk_size=8192):
+                yield chunk
+        return Response(generate(), content_type=response.headers.get('Content-Type', 'video/mp4'))
+    except Exception as e:
+        print(f"Errore nello streaming del video: {str(e)}")
+        abort(500)
+
+@app.route('/proxy')
+def proxy():
+    url = request.args.get('url')
+    if not url:
+        print("DEBUG: URL mancante nella richiesta proxy")
+        return jsonify({"error": "URL mancante"}), 400
+    
+    print(f"DEBUG: Richiesta proxy per URL: {url}")
+    try:
+        resp = requests.get(url, stream=True, timeout=10)
+        resp.raise_for_status()
+        
+        print(f"DEBUG: Risposta proxy ricevuta. Status: {resp.status_code}, Content-Type: {resp.headers.get('Content-Type')}")
+        
+        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+        headers = [(name, value) for (name, value) in resp.raw.headers.items()
+                   if name.lower() not in excluded_headers]
+        
+        def generate():
+            for chunk in resp.iter_content(chunk_size=8192):
+                yield chunk
+        
+        response = Response(generate(), resp.status_code, headers)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        print("DEBUG: Risposta proxy inviata al client")
+        return response
+    except requests.RequestException as e:
+        print(f"DEBUG: Errore proxy: {str(e)}")
+        return jsonify({"error": f"Errore nel proxy: {str(e)}"}), 500
+
 def init_db():
     with app.app_context():
         db.create_all()
         print("Database tables created.")
 
+# Aggiungi questa riga dopo la definizione di init_db()
 init_db()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0')  # Rimuoviamo il riferimento esplicito alla porta
