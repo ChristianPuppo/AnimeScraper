@@ -31,3 +31,4 @@ jaconv==0.3
 flask-sqlalchemy
 psycopg2-binary==2.9.3
 aiofiles==23.1.0
+flask-cors==3.0.10
