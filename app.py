@@ -421,7 +421,9 @@ def init_db():
         db.create_all()
         print("Database tables created.")
 
+# Aggiungi questa riga dopo la definizione di init_db()
+init_db()
+
 if __name__ == '__main__':
-    init_db()  # Inizializza il database all'avvio dell'applicazione
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
