@@ -272,16 +272,10 @@ def stream():
             content_type = response.headers.get('Content-Type', '')
             print(f"DEBUG: L'URL video è accessibile. Codice di stato: {response.status_code}, Content-Type: {content_type}")
             
-            # Verifica se il Content-Type è supportato
-            supported_types = ['video/mp4', 'application/x-mpegURL', 'application/vnd.apple.mpegurl']
-            if not any(t in content_type for t in supported_types):
-                print(f"DEBUG: Content-Type non supportato: {content_type}")
-                return jsonify({"error": f"Formato video non supportato: {content_type}"}), 415
-            
             return jsonify({
                 "video_url": video_url, 
                 "content_type": content_type,
-                "final_url": response.url  # URL finale dopo eventuali reindirizzamenti
+                "final_url": response.url
             })
         except requests.RequestException as e:
             print(f"DEBUG: Errore nell'accesso all'URL video: {str(e)}")
@@ -479,6 +473,17 @@ def stream_video(video_url):
     except Exception as e:
         print(f"Errore nello streaming del video: {str(e)}")
         abort(500)
+
+@app.route('/proxy')
+def proxy():
+    url = request.args.get('url')
+    resp = requests.get(url, stream=True)
+    excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+    headers = [(name, value) for (name, value) in resp.raw.headers.items()
+               if name.lower() not in excluded_headers]
+    response = Response(resp.content, resp.status_code, headers)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 def init_db():
     with app.app_context():

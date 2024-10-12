@@ -434,7 +434,7 @@
                         const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
                         console.log("DEBUG: Risposta streaming:", response.data);
                         if (response.data.video_url) {
-                            this.videoUrl = response.data.final_url || response.data.video_url;
+                            this.videoUrl = `/proxy?url=${encodeURIComponent(response.data.video_url)}`;
                             this.videoType = response.data.content_type || this.getVideoType(this.videoUrl);
                             this.currentEpisodeIndex = index;
                             console.log("DEBUG: URL video finale:", this.videoUrl);
