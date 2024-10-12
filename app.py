@@ -1,18 +1,20 @@
 import os
-from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session, send_file, abort
 from flask_sqlalchemy import SQLAlchemy
 import requests
 from bs4 import BeautifulSoup
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, unquote
 from collections import defaultdict
 from dotenv import load_dotenv
 from tmdbv3api import TMDb, TV, Season, Episode
 from fuzzywuzzy import fuzz
 import json
 import uuid
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # Abilita CORS per tutte le route
 
 # Configurazione del database
 database_url = os.environ.get('DATABASE_URL')
@@ -99,7 +101,9 @@ def get_streaming_url(episode_url):
     soup = BeautifulSoup(response.text, 'html.parser')
     streaming_link = soup.find('a', href=lambda href: href and 'watch?file=' in href)
     if streaming_link:
-        return urljoin(BASE_URL, streaming_link['href'])
+        video_url = extract_video_url(urljoin(BASE_URL, streaming_link['href']))
+        if video_url:
+            return video_url
     return None
 
 def extract_video_url(url):
@@ -230,11 +234,10 @@ def episodes():
 def stream():
     episode_url = request.form['episode_url']
     print(f"Richiesta per lo streaming dell'episodio: {episode_url}")
-    streaming_url = get_streaming_url(episode_url)
-    if streaming_url:
-        video_url = extract_video_url(streaming_url)
+    video_url = get_streaming_url(episode_url)
+    if video_url:
         print(f"URL video estratto: {video_url}")
-        return jsonify({"video_url": video_url, "streaming_url": streaming_url})
+        return jsonify({"video_url": video_url})
     print("Impossibile trovare il link dello streaming.")
     return jsonify({"error": "Impossibile trovare il link dello streaming."})
 
@@ -415,6 +418,19 @@ def get_series_metadata_route():
         return jsonify(metadata)
     else:
         return jsonify({"error": "Metadata non trovati"}), 404
+
+@app.route('/stream/<path:video_url>')
+def stream_video(video_url):
+    try:
+        # Decodifica l'URL del video
+        decoded_url = unquote(video_url)
+        # Effettua una richiesta al server video
+        response = requests.get(decoded_url, stream=True)
+        return Response(response.iter_content(chunk_size=1024),
+                        content_type=response.headers['Content-Type'])
+    except Exception as e:
+        print(f"Errore nello streaming del video: {str(e)}")
+        abort(500)
 
 def init_db():
     with app.app_context():

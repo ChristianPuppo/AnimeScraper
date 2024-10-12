@@ -9,6 +9,8 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://vjs.zencdn.net/7.20.3/video-js.min.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
     <style>
         body {
             background-color: #F2F2F7;
@@ -281,11 +283,14 @@
                 </div>
             </div>
 
-            <div v-if="videoUrl" ref="streamingSection" class="mb-6 card p-6">
-                <h2 class="text-2xl font-semibold mb-3 text-primary">Video trovato:</h2>
-                <p class="mb-3 text-gray-700 break-all" v-text="videoUrl"></p>
-                <div class="flex flex-col space-y-2">
-                    <button @click="copyToClipboard(videoUrl)" class="btn btn-secondary text-white p-3">Copia Link</button>
+            <div v-if="videoUrl" ref="videoPlayerSection" class="mb-6 card p-6">
+                <h2 class="text-2xl font-semibold mb-3 text-primary">Video Player</h2>
+                <video-js id="my-video" class="video-js vjs-big-play-centered" controls preload="auto" width="640" height="360">
+                    <source :src="videoUrl" :type="videoType">
+                </video-js>
+                <div class="flex justify-between mt-4">
+                    <button @click="playPreviousEpisode" class="btn btn-secondary text-white p-2" :disabled="!hasPreviousEpisode">Episodio Precedente</button>
+                    <button @click="playNextEpisode" class="btn btn-secondary text-white p-2" :disabled="!hasNextEpisode">Episodio Successivo</button>
                 </div>
             </div>
 
@@ -387,6 +392,17 @@
                 startTime: 0,
                 processedEpisodes: 0,
                 totalEpisodes: 0,
+                currentEpisodeIndex: -1,
+                videoType: '',
+                player: null,
+            },
+            computed: {
+                hasPreviousEpisode() {
+                    return this.currentEpisodeIndex > 0;
+                },
+                hasNextEpisode() {
+                    return this.currentEpisodeIndex < this.episodes.length - 1;
+                },
             },
             methods: {
                 async searchAnime() {
@@ -412,23 +428,39 @@
                         this.scrollTo('episodesSection');
                     });
                 },
-                async getStreamingUrl(episodeUrl) {
+                async getStreamingUrl(episodeUrl, index) {
                     console.log("DEBUG: Richiesta URL streaming per:", episodeUrl);
                     const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
                     console.log("DEBUG: Risposta streaming:", response.data);
                     if (response.data.video_url) {
                         this.videoUrl = response.data.video_url;
-                        this.streamingUrl = response.data.streaming_url;
-                    } else if (response.data.streaming_url) {
-                        this.streamingUrl = response.data.streaming_url;
-                        this.videoUrl = '';
+                        this.videoType = this.videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
+                        this.currentEpisodeIndex = index;
+                        this.$nextTick(() => {
+                            this.initVideoPlayer();
+                            this.scrollTo('videoPlayerSection');
+                        });
                     } else {
                         console.error("DEBUG: Errore nel recupero dell'URL di streaming:", response.data.error);
                         alert('Errore: ' + response.data.error);
                     }
-                    this.$nextTick(() => {
-                        this.scrollTo('streamingSection');
-                    });
+                },
+                initVideoPlayer() {
+                    if (this.player) {
+                        this.player.dispose();
+                    }
+                    this.player = videojs('my-video');
+                    this.player.src({ type: this.videoType, src: this.videoUrl });
+                },
+                playPreviousEpisode() {
+                    if (this.hasPreviousEpisode) {
+                        this.getStreamingUrl(this.episodes[this.currentEpisodeIndex - 1].url, this.currentEpisodeIndex - 1);
+                    }
+                },
+                playNextEpisode() {
+                    if (this.hasNextEpisode) {
+                        this.getStreamingUrl(this.episodes[this.currentEpisodeIndex + 1].url, this.currentEpisodeIndex + 1);
+                    }
                 },
                 scrollTo(refName) {
                     const element = this.$refs[refName];
@@ -721,6 +753,11 @@
             watch: {
                 estimatedTime(newValue, oldValue) {
                     console.log(`Debug: estimatedTime changed from ${oldValue} to ${newValue}`);
+                }
+            },
+            beforeDestroy() {
+                if (this.player) {
+                    this.player.dispose();
                 }
             },
         });
