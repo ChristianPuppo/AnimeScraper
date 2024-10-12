@@ -430,27 +430,39 @@
                 },
                 async getStreamingUrl(episodeUrl, index) {
                     console.log("DEBUG: Richiesta URL streaming per:", episodeUrl);
-                    const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
-                    console.log("DEBUG: Risposta streaming:", response.data);
-                    if (response.data.video_url) {
-                        this.videoUrl = response.data.video_url; // Usa l'URL diretto invece di passarlo attraverso il server
-                        this.videoType = this.videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
-                        this.currentEpisodeIndex = index;
-                        this.$nextTick(() => {
-                            this.initVideoPlayer();
-                            this.scrollTo('videoPlayerSection');
-                        });
-                    } else {
-                        console.error("DEBUG: Errore nel recupero dell'URL di streaming:", response.data.error);
-                        alert('Errore: ' + response.data.error);
+                    try {
+                        const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
+                        console.log("DEBUG: Risposta streaming:", response.data);
+                        if (response.data.video_url) {
+                            this.videoUrl = response.data.video_url;
+                            this.videoType = this.videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
+                            this.currentEpisodeIndex = index;
+                            this.$nextTick(() => {
+                                this.initVideoPlayer();
+                                this.scrollTo('videoPlayerSection');
+                            });
+                        } else {
+                            console.error("DEBUG: Errore nel recupero dell'URL di streaming:", response.data.error);
+                            alert('Errore: ' + response.data.error);
+                        }
+                    } catch (error) {
+                        console.error("DEBUG: Errore nella richiesta di streaming:", error);
+                        if (error.response) {
+                            console.error("DEBUG: Risposta del server:", error.response.data);
+                        }
+                        alert('Si è verificato un errore durante il recupero dello streaming. Riprova.');
                     }
+                    console.log("DEBUG: Fine getStreamingUrl");
                 },
                 initVideoPlayer() {
+                    console.log("DEBUG: Inizializzazione del player video");
                     this.$nextTick(() => {
                         if (this.player) {
+                            console.log("DEBUG: Disposing del player esistente");
                             this.player.dispose();
                         }
                         if (this.$refs.videoPlayer) {
+                            console.log("DEBUG: Creazione nuovo player video");
                             this.player = videojs(this.$refs.videoPlayer, {
                                 controls: true,
                                 autoplay: false,
@@ -461,8 +473,12 @@
                                 }]
                             });
                             this.player.on('error', (e) => {
-                                console.error('Video.js Error:', e);
+                                console.error('DEBUG: Video.js Error:', e);
+                                console.error('DEBUG: Video.js Error Details:', this.player.error());
                             });
+                            console.log("DEBUG: Player video inizializzato");
+                        } else {
+                            console.error("DEBUG: Elemento video non trovato");
                         }
                     });
                 },

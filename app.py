@@ -96,18 +96,32 @@ def get_episodes(anime_url):
     return episode_data
 
 def get_streaming_url(episode_url):
-    response = requests.get(episode_url)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, 'html.parser')
-    streaming_link = soup.find('a', href=lambda href: href and 'watch?file=' in href)
-    if streaming_link:
-        video_url = extract_video_url(urljoin(BASE_URL, streaming_link['href']))
-        if video_url:
-            return video_url
+    try:
+        print(f"DEBUG: Inizio estrazione URL streaming da: {episode_url}")
+        response = requests.get(episode_url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        streaming_link = soup.find('a', href=lambda href: href and 'watch?file=' in href)
+        if streaming_link:
+            watch_url = urljoin(BASE_URL, streaming_link['href'])
+            print(f"DEBUG: URL watch trovato: {watch_url}")
+            video_url = extract_video_url(watch_url)
+            if video_url:
+                print(f"DEBUG: URL video estratto con successo: {video_url}")
+                return video_url
+            else:
+                print("DEBUG: Impossibile estrarre l'URL video dalla pagina watch")
+        else:
+            print("DEBUG: Nessun link di streaming trovato nella pagina dell'episodio")
+    except requests.RequestException as e:
+        print(f"DEBUG: Errore durante la richiesta HTTP: {str(e)}")
+    except Exception as e:
+        print(f"DEBUG: Errore imprevisto durante l'estrazione dell'URL streaming: {str(e)}")
     return None
 
 def extract_video_url(url):
     try:
+        print(f"DEBUG: Inizio estrazione URL video da: {url}")
         response = requests.get(url)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -115,6 +129,7 @@ def extract_video_url(url):
         iframe = soup.find('iframe')
         if iframe and 'src' in iframe.attrs:
             iframe_src = iframe['src']
+            print(f"DEBUG: URL iframe trovato: {iframe_src}")
             iframe_response = requests.get(iframe_src)
             iframe_response.raise_for_status()
             video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
@@ -123,24 +138,35 @@ def extract_video_url(url):
             for script in iframe_soup.find_all('script'):
                 match = re.search(video_pattern, str(script))
                 if match:
-                    return match.group(0)
+                    video_url = match.group(0)
+                    print(f"DEBUG: URL video trovato nello script dell'iframe: {video_url}")
+                    return video_url
 
             match = re.search(video_pattern, iframe_response.text)
             if match:
-                return match.group(0)
+                video_url = match.group(0)
+                print(f"DEBUG: URL video trovato nel testo dell'iframe: {video_url}")
+                return video_url
 
         video_pattern = r'(https?://.*?\.(?:m3u8|mp4))'
         for script in soup.find_all('script'):
             match = re.search(video_pattern, str(script))
             if match:
-                return match.group(0)
+                video_url = match.group(0)
+                print(f"DEBUG: URL video trovato nello script della pagina principale: {video_url}")
+                return video_url
 
         match = re.search(video_pattern, response.text)
         if match:
-            return match.group(0)
+            video_url = match.group(0)
+            print(f"DEBUG: URL video trovato nel testo della pagina principale: {video_url}")
+            return video_url
 
+        print("DEBUG: Nessun URL video trovato")
     except requests.RequestException as e:
-        print(f"Errore nell'estrazione dell'URL video: {e}")
+        print(f"DEBUG: Errore durante la richiesta HTTP: {str(e)}")
+    except Exception as e:
+        print(f"DEBUG: Errore imprevisto durante l'estrazione dell'URL video: {str(e)}")
 
     return None
 
@@ -233,12 +259,20 @@ def episodes():
 @app.route('/stream', methods=['POST'])
 def stream():
     episode_url = request.form['episode_url']
-    print(f"Richiesta per lo streaming dell'episodio: {episode_url}")
+    print(f"DEBUG: Richiesta per lo streaming dell'episodio: {episode_url}")
     video_url = get_streaming_url(episode_url)
     if video_url:
-        print(f"URL video estratto: {video_url}")
+        print(f"DEBUG: URL video estratto: {video_url}")
+        # Verifica se l'URL è accessibile
+        try:
+            response = requests.head(video_url, timeout=5)
+            response.raise_for_status()
+            print(f"DEBUG: L'URL video è accessibile. Codice di stato: {response.status_code}")
+        except requests.RequestException as e:
+            print(f"DEBUG: Errore nell'accesso all'URL video: {str(e)}")
+            return jsonify({"error": f"Impossibile accedere all'URL video: {str(e)}"}), 404
         return jsonify({"video_url": video_url})
-    print("Impossibile trovare il link dello streaming.")
+    print("DEBUG: Impossibile trovare il link dello streaming.")
     return jsonify({"error": "Impossibile trovare il link dello streaming."}), 404
 
 @app.route('/save_playlist', methods=['POST'])
