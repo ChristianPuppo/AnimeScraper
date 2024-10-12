@@ -434,9 +434,11 @@
                         const response = await axios.post('/stream', new URLSearchParams({ episode_url: episodeUrl }));
                         console.log("DEBUG: Risposta streaming:", response.data);
                         if (response.data.video_url) {
-                            this.videoUrl = response.data.video_url;
+                            this.videoUrl = response.data.final_url || response.data.video_url;
                             this.videoType = response.data.content_type || this.getVideoType(this.videoUrl);
                             this.currentEpisodeIndex = index;
+                            console.log("DEBUG: URL video finale:", this.videoUrl);
+                            console.log("DEBUG: Tipo video:", this.videoType);
                             this.$nextTick(() => {
                                 this.initVideoPlayer();
                                 this.scrollTo('videoPlayerSection');
@@ -479,7 +481,14 @@
                                 sources: [{
                                     src: this.videoUrl,
                                     type: this.videoType
-                                }]
+                                }],
+                                html5: {
+                                    hls: {
+                                        enableLowInitialPlaylist: true,
+                                        smoothQualityChange: true,
+                                        overrideNative: true
+                                    }
+                                }
                             };
 
                             this.player = videojs(this.$refs.videoPlayer, playerOptions);
@@ -494,6 +503,10 @@
                                 console.log("DEBUG: Video metadata loaded successfully");
                             });
 
+                            this.player.on('loadeddata', () => {
+                                console.log("DEBUG: Video data loaded successfully");
+                            });
+
                             console.log("DEBUG: Player video inizializzato");
                         } else {
                             console.error("DEBUG: Elemento video non trovato");
@@ -506,6 +519,10 @@
                     if (this.videoType === 'application/x-mpegURL') {
                         console.log("DEBUG: Tentativo di fallback a MP4");
                         this.videoType = 'video/mp4';
+                        this.initVideoPlayer();
+                    } else if (this.videoType === 'video/mp4') {
+                        console.log("DEBUG: Tentativo di fallback a HLS");
+                        this.videoType = 'application/x-mpegURL';
                         this.initVideoPlayer();
                     } else {
                         console.error("DEBUG: Impossibile riprodurre il video");
