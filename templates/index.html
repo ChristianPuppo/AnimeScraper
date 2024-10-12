@@ -434,7 +434,7 @@
                     console.log("DEBUG: Risposta streaming:", response.data);
                     if (response.data.video_url) {
                         this.videoUrl = `/stream/${encodeURIComponent(response.data.video_url)}`;
-                        this.videoType = this.videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
+                        this.videoType = response.data.video_url.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4';
                         this.currentEpisodeIndex = index;
                         this.$nextTick(() => {
                             this.initVideoPlayer();
@@ -446,15 +446,19 @@
                     }
                 },
                 initVideoPlayer() {
-                    if (this.player) {
-                        this.player.dispose();
-                    }
-                    this.player = videojs(this.$refs.videoPlayer, {
-                        controls: true,
-                        autoplay: false,
-                        preload: 'auto'
+                    this.$nextTick(() => {
+                        if (this.player) {
+                            this.player.dispose();
+                        }
+                        if (this.$refs.videoPlayer) {
+                            this.player = videojs(this.$refs.videoPlayer, {
+                                controls: true,
+                                autoplay: false,
+                                preload: 'auto'
+                            });
+                            this.player.src({ type: this.videoType, src: this.videoUrl });
+                        }
                     });
-                    this.player.src({ type: this.videoType, src: this.videoUrl });
                 },
                 playPreviousEpisode() {
                     if (this.hasPreviousEpisode) {

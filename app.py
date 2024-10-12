@@ -14,7 +14,7 @@ import uuid
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Abilita CORS per tutte le route
+CORS(app, resources={r"/stream/*": {"origins": "*"}})
 
 # Configurazione del database
 database_url = os.environ.get('DATABASE_URL')
@@ -422,14 +422,12 @@ def get_series_metadata_route():
 @app.route('/stream/<path:video_url>')
 def stream_video(video_url):
     try:
-        # Decodifica l'URL del video
         decoded_url = unquote(video_url)
-        # Effettua una richiesta al server video
         response = requests.get(decoded_url, stream=True)
         def generate():
-            for chunk in response.iter_content(chunk_size=1024):
+            for chunk in response.iter_content(chunk_size=8192):
                 yield chunk
-        return Response(generate(), content_type=response.headers['Content-Type'])
+        return Response(generate(), content_type=response.headers.get('Content-Type', 'video/mp4'))
     except Exception as e:
         print(f"Errore nello streaming del video: {str(e)}")
         abort(500)
