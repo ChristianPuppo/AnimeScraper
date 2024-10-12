@@ -1,5 +1,4 @@
 .venv/
-.venv/
 .env
 *.pyc
 __pycache__/
@@ -10,3 +9,5 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+# Rimuovi o commenta la seguente riga se presente
+# *.db
