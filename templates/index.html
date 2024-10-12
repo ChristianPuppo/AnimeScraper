@@ -459,6 +459,12 @@
                                 console.error("DEBUG: Errore nella verifica del video:", videoError);
                             }
                             
+                            // Rimuovi il player esistente prima di crearne uno nuovo
+                            if (this.player) {
+                                this.player.dispose();
+                                this.player = null;
+                            }
+                            
                             this.$nextTick(() => {
                                 this.initVideoPlayer();
                                 this.scrollTo('videoPlayerSection');
@@ -487,8 +493,14 @@
                     this.$nextTick(() => {
                         if (this.player) {
                             console.log("DEBUG: Disposing del player esistente");
-                            this.player.dispose();
+                            try {
+                                this.player.dispose();
+                            } catch (error) {
+                                console.error("DEBUG: Errore durante il dispose del player:", error);
+                            }
+                            this.player = null;
                         }
+                        
                         if (this.$refs.videoPlayer) {
                             console.log("DEBUG: Creazione nuovo player video");
                             console.log("DEBUG: Video URL:", this.videoUrl);
@@ -505,38 +517,42 @@
                                 html5: {
                                     vhs: {
                                         overrideNative: true,
-                                        debug: true  // Abilita il debug VHS
+                                        debug: true
                                     },
                                     nativeAudioTracks: false,
                                     nativeVideoTracks: false
                                 }
                             };
 
-                            this.player = videojs(this.$refs.videoPlayer, playerOptions);
-                            
-                            this.player.on('error', (e) => {
-                                console.error('DEBUG: Video.js Error:', e);
-                                console.error('DEBUG: Video.js Error Details:', this.player.error());
-                                this.handleVideoError();
-                            });
+                            try {
+                                this.player = videojs(this.$refs.videoPlayer, playerOptions);
+                                
+                                this.player.on('error', (e) => {
+                                    console.error('DEBUG: Video.js Error:', e);
+                                    console.error('DEBUG: Video.js Error Details:', this.player.error());
+                                    this.handleVideoError();
+                                });
 
-                            this.player.on('loadedmetadata', () => {
-                                console.log("DEBUG: Video metadata loaded successfully");
-                            });
+                                this.player.on('loadedmetadata', () => {
+                                    console.log("DEBUG: Video metadata loaded successfully");
+                                });
 
-                            this.player.on('loadeddata', () => {
-                                console.log("DEBUG: Video data loaded successfully");
-                            });
+                                this.player.on('loadeddata', () => {
+                                    console.log("DEBUG: Video data loaded successfully");
+                                });
 
-                            this.player.on('canplay', () => {
-                                console.log("DEBUG: Video can be played");
-                            });
+                                this.player.on('canplay', () => {
+                                    console.log("DEBUG: Video can be played");
+                                });
 
-                            this.player.on('playing', () => {
-                                console.log("DEBUG: Video is playing");
-                            });
+                                this.player.on('playing', () => {
+                                    console.log("DEBUG: Video is playing");
+                                });
 
-                            console.log("DEBUG: Player video inizializzato");
+                                console.log("DEBUG: Player video inizializzato");
+                            } catch (error) {
+                                console.error("DEBUG: Errore durante l'inizializzazione del player:", error);
+                            }
                         } else {
                             console.error("DEBUG: Elemento video non trovato");
                         }
