@@ -416,6 +416,12 @@ def get_series_metadata_route():
     else:
         return jsonify({"error": "Metadata non trovati"}), 404
 
+def init_db():
+    with app.app_context():
+        db.create_all()
+        print("Database tables created.")
+
 if __name__ == '__main__':
+    init_db()  # Inizializza il database
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
